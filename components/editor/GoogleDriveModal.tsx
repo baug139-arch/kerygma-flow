@@ -16,9 +16,15 @@ import {
   Clock,
   Search,
   FileCode,
+  Layers,
+  CheckSquare,
+  Square,
+  ArrowLeft,
+  ListTree,
 } from 'lucide-react';
 import { Sermon } from '@/lib/types';
 import { useGoogleDrive } from '@/lib/google/useGoogleDrive';
+import { parseDocumentSections, ParsedDocSection } from '@/lib/utils/sectionParser';
 
 interface GoogleDriveModalProps {
   isOpen: boolean;
@@ -26,10 +32,21 @@ interface GoogleDriveModalProps {
   onImportDoc: (importedSermon: Partial<Sermon>) => void;
 }
 
+interface PendingDoc {
+  fileId: string;
+  title: string;
+  fullContent: string;
+  sections: ParsedDocSection[];
+}
+
 export function GoogleDriveModal({ isOpen, onClose, onImportDoc }: GoogleDriveModalProps) {
   const [activeTab, setActiveTab] = useState<'direct' | 'link'>('direct');
   const [selectedDocId, setSelectedDocId] = useState<string | null>(null);
   const [searchFilter, setSearchFilter] = useState('');
+
+  // Multi-section selection state
+  const [pendingDoc, setPendingDoc] = useState<PendingDoc | null>(null);
+  const [selectedSectionIds, setSelectedSectionIds] = useState<string[]>([]);
 
   // Link import fallback state
   const [docUrl, setDocUrl] = useState('');
@@ -57,19 +74,38 @@ export function GoogleDriveModal({ isOpen, onClose, onImportDoc }: GoogleDriveMo
 
   if (!isOpen) return null;
 
+  const processLoadedDocument = (fileId: string, title: string, content: string) => {
+    const sections = parseDocumentSections(content);
+
+    // If document has multiple sections, offer section choice
+    if (sections.length > 1) {
+      setPendingDoc({
+        fileId,
+        title,
+        fullContent: content,
+        sections,
+      });
+      // By default select all sections
+      setSelectedSectionIds(sections.map((s) => s.id));
+    } else {
+      // 1 section: import directly
+      onImportDoc({
+        title,
+        content,
+        targetDurationMinutes: Math.max(10, Math.round(content.split(/\s+/).filter(Boolean).length / 115)),
+        syncedFromGoogle: true,
+        googleDocId: fileId,
+      });
+      onClose();
+    }
+  };
+
   // Handle direct file import from Google Drive
   const handleSelectDriveFile = async (fileId: string) => {
     setSelectedDocId(fileId);
     try {
       const doc = await getDocumentContent(fileId);
-      onImportDoc({
-        title: doc.title,
-        content: doc.content,
-        targetDurationMinutes: 30,
-        syncedFromGoogle: true,
-        googleDocId: fileId,
-      });
-      onClose();
+      processLoadedDocument(fileId, doc.title, doc.content);
     } catch (err: any) {
       // Handled in hook
     } finally {
@@ -102,19 +138,50 @@ export function GoogleDriveModal({ isOpen, onClose, onImportDoc }: GoogleDriveMo
         return;
       }
 
-      onImportDoc({
-        title: data.title,
-        content: data.content,
-        targetDurationMinutes: 30,
-        syncedFromGoogle: true,
-        googleDocId: data.docId,
-      });
+      processLoadedDocument(data.docId || `url-${Date.now()}`, data.title, data.content);
       setIsUrlLoading(false);
-      onClose();
     } catch (err: any) {
       setUrlError(err.message || 'Сетевая ошибка при подключении к Google Docs');
       setIsUrlLoading(false);
     }
+  };
+
+  // Confirm section selection import
+  const handleConfirmSectionImport = () => {
+    if (!pendingDoc) return;
+    const chosen = pendingDoc.sections.filter((s) => selectedSectionIds.includes(s.id));
+    if (chosen.length === 0) return;
+
+    const combinedContent = chosen.map((s) => s.content).join('\n\n');
+    const title =
+      chosen.length === 1
+        ? `${chosen[0].title}`
+        : `${pendingDoc.title} (${chosen.length} разд.)`;
+
+    onImportDoc({
+      title,
+      content: combinedContent,
+      targetDurationMinutes: Math.max(10, Math.round(combinedContent.split(/\s+/).filter(Boolean).length / 115)),
+      syncedFromGoogle: true,
+      googleDocId: pendingDoc.fileId,
+    });
+    setPendingDoc(null);
+    onClose();
+  };
+
+  const toggleSectionId = (id: string) => {
+    setSelectedSectionIds((prev) =>
+      prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]
+    );
+  };
+
+  const selectOnlySection = (id: string) => {
+    setSelectedSectionIds([id]);
+  };
+
+  const selectAllSections = () => {
+    if (!pendingDoc) return;
+    setSelectedSectionIds(pendingDoc.sections.map((s) => s.id));
   };
 
   return (
@@ -127,253 +194,378 @@ export function GoogleDriveModal({ isOpen, onClose, onImportDoc }: GoogleDriveMo
         <div className="flex items-center justify-between border-b border-zinc-800 pb-4 shrink-0">
           <div className="flex items-center gap-3">
             <div className="p-2.5 rounded-2xl bg-amber-500/10 text-amber-400 border border-amber-500/20">
-              <HardDrive className="w-6 h-6" />
+              {pendingDoc ? <ListTree className="w-6 h-6" /> : <HardDrive className="w-6 h-6" />}
             </div>
             <div>
-              <h3 className="text-lg font-bold">Google Документы</h3>
-              <p className="text-xs text-zinc-400">Прямой доступ к вашим файлам конспектов</p>
+              <h3 className="text-lg font-bold">
+                {pendingDoc ? 'Выбор разделов для проповеди' : 'Google Документы'}
+              </h3>
+              <p className="text-xs text-zinc-400">
+                {pendingDoc
+                  ? `В документе обнаружено ${pendingDoc.sections.length} разделов`
+                  : 'Прямой доступ к вашим файлам конспектов'}
+              </p>
             </div>
           </div>
           <button
-            onClick={onClose}
+            onClick={() => {
+              setPendingDoc(null);
+              onClose();
+            }}
             className="p-2 rounded-xl text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800 transition-all"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
-        {/* Tab Navigation */}
-        <div className="flex items-center p-1 bg-zinc-950/80 rounded-2xl border border-zinc-800 shrink-0">
-          <button
-            onClick={() => setActiveTab('direct')}
-            className={`flex-1 py-2 rounded-xl text-xs font-bold transition-all ${
-              activeTab === 'direct'
-                ? 'bg-amber-500 text-black shadow-md'
-                : 'text-zinc-400 hover:text-zinc-200'
-            }`}
-          >
-            ⚡️ Прямой вход (Google Drive)
-          </button>
-          <button
-            onClick={() => setActiveTab('link')}
-            className={`flex-1 py-2 rounded-xl text-xs font-bold transition-all ${
-              activeTab === 'link'
-                ? 'bg-zinc-800 text-zinc-100 shadow-md'
-                : 'text-zinc-400 hover:text-zinc-200'
-            }`}
-          >
-            🔗 По ссылке на документ
-          </button>
-        </div>
-
-        {/* TAB 1: Direct Google Drive Access */}
-        {activeTab === 'direct' && (
+        {/* STEP 2: Section Choice Screen */}
+        {pendingDoc ? (
           <div className="flex-1 overflow-y-auto space-y-4 pr-1 flex flex-col min-h-0">
-            {!accessToken ? (
-              <div className="space-y-4 py-2">
-                <div className="p-5 rounded-2xl bg-zinc-950/60 border border-zinc-800 text-center space-y-3">
-                  <div className="w-12 h-12 rounded-2xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center mx-auto text-amber-400">
-                    <LogIn className="w-6 h-6" />
-                  </div>
-                  <div>
-                    <h4 className="text-sm font-bold text-zinc-100">Вход в Google Аккаунт</h4>
-                    <p className="text-xs text-zinc-400 mt-1 max-w-sm mx-auto leading-relaxed">
-                      Авторизуйтесь в Google, чтобы выбирать любые конспекты прямо со своего Google Диска в 1 клик.
-                    </p>
-                  </div>
+            <div className="p-3.5 rounded-2xl bg-zinc-950 border border-zinc-800 space-y-2 shrink-0">
+              <div className="text-xs text-zinc-400">Выбранный документ:</div>
+              <div className="text-sm font-bold text-amber-300 truncate">{pendingDoc.title}</div>
+            </div>
 
-                  <button
-                    onClick={login}
-                    disabled={isLoading}
-                    className="w-full flex items-center justify-center gap-2 py-3 px-4 rounded-2xl text-xs sm:text-sm font-bold bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-black shadow-lg shadow-amber-500/20 transition-all active:scale-98"
-                  >
-                    {isLoading ? (
-                      <RefreshCw className="w-4 h-4 animate-spin" />
-                    ) : (
-                      <HardDrive className="w-4 h-4" />
-                    )}
-                    <span>Войти через Google и открыть файлы</span>
-                  </button>
-                </div>
+            {/* Quick Actions (Select All / Single) */}
+            <div className="flex items-center justify-between gap-2 shrink-0">
+              <span className="text-xs text-zinc-400">
+                Выбрано: <b className="text-zinc-200">{selectedSectionIds.length}</b> из {pendingDoc.sections.length}
+              </span>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={selectAllSections}
+                  className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-zinc-800 hover:bg-zinc-700 text-zinc-200"
+                >
+                  Выбрать все
+                </button>
+                <button
+                  onClick={() => setSelectedSectionIds([])}
+                  className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-zinc-800/60 hover:bg-zinc-800 text-zinc-400"
+                >
+                  Снять
+                </button>
               </div>
-            ) : (
-              /* Signed in: List of real Google Drive Files with Search */
-              <div className="space-y-3 flex-1 flex flex-col min-h-0">
-                {/* Account info bar */}
-                <div className="flex items-center justify-between p-3 rounded-2xl bg-zinc-950 border border-zinc-800 text-xs shrink-0">
-                  <div className="flex items-center gap-2 truncate">
-                    <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
-                    <span className="truncate text-zinc-300 font-medium">{userEmail || 'Google Аккаунт'}</span>
-                  </div>
-                  <div className="flex items-center gap-2 shrink-0">
-                    <button
-                      onClick={() => refreshFiles(searchFilter)}
-                      className="p-1.5 rounded-lg text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800"
-                      title="Обновить список файлов с Google Диска"
-                    >
-                      <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin text-amber-400' : ''}`} />
-                    </button>
-                    <button
-                      onClick={logout}
-                      className="p-1.5 rounded-lg text-zinc-400 hover:text-red-400 hover:bg-zinc-800"
-                      title="Выйти из аккаунта"
-                    >
-                      <LogOut className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-                </div>
+            </div>
 
-                {/* 🔍 Search Input Bar */}
-                <div className="relative shrink-0">
-                  <Search className="w-4 h-4 text-zinc-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
-                  <input
-                    type="text"
-                    value={searchFilter}
-                    onChange={(e) => setSearchFilter(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') {
-                        refreshFiles(searchFilter);
-                      }
-                    }}
-                    placeholder="Поиск по названию проповеди или темы..."
-                    className="w-full bg-zinc-950/80 border border-zinc-800 focus:border-amber-500/60 rounded-2xl pl-10 pr-10 py-2.5 text-xs sm:text-sm text-zinc-100 placeholder-zinc-500 focus:outline-none transition-all"
-                  />
-                  {searchFilter && (
+            {/* List of Sections */}
+            <div className="flex-1 overflow-y-auto space-y-2 min-h-[220px] max-h-[300px] pr-1">
+              {pendingDoc.sections.map((section, idx) => {
+                const isSelected = selectedSectionIds.includes(section.id);
+                return (
+                  <div
+                    key={section.id}
+                    onClick={() => toggleSectionId(section.id)}
+                    className={`p-3.5 rounded-2xl border transition-all cursor-pointer flex items-start gap-3 ${
+                      isSelected
+                        ? 'bg-amber-500/10 border-amber-500/50 text-zinc-100'
+                        : 'bg-zinc-950/60 border-zinc-800/80 hover:border-zinc-700 text-zinc-400'
+                    }`}
+                  >
                     <button
-                      onClick={() => {
-                        setSearchFilter('');
-                        refreshFiles('');
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        toggleSectionId(section.id);
                       }}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 p-1 rounded-lg text-zinc-500 hover:text-zinc-200"
+                      className="mt-0.5 text-amber-400 shrink-0"
                     >
-                      <X className="w-3.5 h-3.5" />
+                      {isSelected ? (
+                        <CheckSquare className="w-5 h-5 fill-amber-500/20" />
+                      ) : (
+                        <Square className="w-5 h-5 text-zinc-600" />
+                      )}
                     </button>
-                  )}
-                </div>
 
-                {/* Counter & Label */}
-                <div className="flex items-center justify-between text-[11px] uppercase tracking-wider font-bold text-zinc-500 px-1 shrink-0">
-                  <span>Документы Google Диска</span>
-                  <span>{filteredFiles.length} из {files.length}</span>
-                </div>
-
-                {/* Files List */}
-                <div className="flex-1 overflow-y-auto space-y-2 min-h-[220px] max-h-[340px] pr-1">
-                  {isLoading && files.length === 0 ? (
-                    <div className="py-12 text-center text-xs text-zinc-500 flex flex-col items-center gap-2">
-                      <RefreshCw className="w-5 h-5 animate-spin text-amber-400" />
-                      <span>Ищем все файлы на вашем Google Диске...</span>
+                    <div className="flex-1 min-w-0 space-y-1">
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="font-semibold text-sm truncate text-zinc-200">
+                          <span className="opacity-60 mr-1.5 font-mono text-xs">{idx + 1}.</span>
+                          <span>{section.title}</span>
+                        </div>
+                        <span className="text-[11px] text-zinc-500 font-mono shrink-0">
+                          ~{section.wordCount} сл.
+                        </span>
+                      </div>
+                      <p className="text-xs text-zinc-500 line-clamp-1">
+                        {section.content.replace(/[#*`_>]/g, '').trim()}
+                      </p>
                     </div>
-                  ) : filteredFiles.length === 0 ? (
-                    <div className="py-12 text-center text-xs text-zinc-500 space-y-2">
-                      <p>Файлов по запросу «{searchFilter}» не найдено.</p>
-                      {searchFilter && (
+
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        selectOnlySection(section.id);
+                      }}
+                      className="px-2 py-1 rounded-lg text-[10px] font-bold bg-zinc-800 hover:bg-amber-500 hover:text-black text-zinc-300 transition-colors shrink-0"
+                      title="Импортировать только этот раздел"
+                    >
+                      Только этот
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Bottom Actions */}
+            <div className="flex items-center justify-between gap-3 pt-2 border-t border-zinc-800 shrink-0">
+              <button
+                onClick={() => setPendingDoc(null)}
+                className="flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl text-xs font-semibold bg-zinc-800 hover:bg-zinc-700 text-zinc-300"
+              >
+                <ArrowLeft className="w-4 h-4" />
+                <span>Назад к файлам</span>
+              </button>
+
+              <button
+                onClick={handleConfirmSectionImport}
+                disabled={selectedSectionIds.length === 0}
+                className="flex-1 flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl text-xs sm:text-sm font-bold bg-amber-500 hover:bg-amber-400 disabled:opacity-40 text-black shadow-lg shadow-amber-500/20 transition-all active:scale-98"
+              >
+                <Sparkles className="w-4 h-4" />
+                <span>
+                  Импортировать {selectedSectionIds.length === pendingDoc.sections.length ? 'весь документ' : `выбранное (${selectedSectionIds.length})`}
+                </span>
+              </button>
+            </div>
+          </div>
+        ) : (
+          /* STEP 1: File Browser */
+          <>
+            {/* Tab Navigation */}
+            <div className="flex items-center p-1 bg-zinc-950/80 rounded-2xl border border-zinc-800 shrink-0">
+              <button
+                onClick={() => setActiveTab('direct')}
+                className={`flex-1 py-2 rounded-xl text-xs font-bold transition-all ${
+                  activeTab === 'direct'
+                    ? 'bg-amber-500 text-black shadow-md'
+                    : 'text-zinc-400 hover:text-zinc-200'
+                }`}
+              >
+                ⚡️ Прямой вход (Google Drive)
+              </button>
+              <button
+                onClick={() => setActiveTab('link')}
+                className={`flex-1 py-2 rounded-xl text-xs font-bold transition-all ${
+                  activeTab === 'link'
+                    ? 'bg-zinc-800 text-zinc-100 shadow-md'
+                    : 'text-zinc-400 hover:text-zinc-200'
+                }`}
+              >
+                🔗 По ссылке на документ
+              </button>
+            </div>
+
+            {/* TAB 1: Direct Google Drive Access */}
+            {activeTab === 'direct' && (
+              <div className="flex-1 overflow-y-auto space-y-4 pr-1 flex flex-col min-h-0">
+                {!accessToken ? (
+                  <div className="space-y-4 py-2">
+                    <div className="p-5 rounded-2xl bg-zinc-950/60 border border-zinc-800 text-center space-y-3">
+                      <div className="w-12 h-12 rounded-2xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center mx-auto text-amber-400">
+                        <LogIn className="w-6 h-6" />
+                      </div>
+                      <div>
+                        <h4 className="text-sm font-bold text-zinc-100">Вход в Google Аккаунт</h4>
+                        <p className="text-xs text-zinc-400 mt-1 max-w-sm mx-auto leading-relaxed">
+                          Авторизуйтесь в Google, чтобы выбирать любые конспекты прямо со своего Google Диска в 1 клик.
+                        </p>
+                      </div>
+
+                      <button
+                        onClick={login}
+                        disabled={isLoading}
+                        className="w-full flex items-center justify-center gap-2 py-3 px-4 rounded-2xl text-xs sm:text-sm font-bold bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-black shadow-lg shadow-amber-500/20 transition-all active:scale-98"
+                      >
+                        {isLoading ? (
+                          <RefreshCw className="w-4 h-4 animate-spin" />
+                        ) : (
+                          <HardDrive className="w-4 h-4" />
+                        )}
+                        <span>Войти через Google и открыть файлы</span>
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  /* Signed in: List of real Google Drive Files with Search */
+                  <div className="space-y-3 flex-1 flex flex-col min-h-0">
+                    {/* Account info bar */}
+                    <div className="flex items-center justify-between p-3 rounded-2xl bg-zinc-950 border border-zinc-800 text-xs shrink-0">
+                      <div className="flex items-center gap-2 truncate">
+                        <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                        <span className="truncate text-zinc-300 font-medium">{userEmail || 'Google Аккаунт'}</span>
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0">
                         <button
                           onClick={() => refreshFiles(searchFilter)}
-                          className="text-amber-400 hover:underline text-xs"
+                          className="p-1.5 rounded-lg text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800"
+                          title="Обновить список файлов с Google Диска"
                         >
-                          Искать глубже на всем Google Диске ↵
+                          <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin text-amber-400' : ''}`} />
+                        </button>
+                        <button
+                          onClick={logout}
+                          className="p-1.5 rounded-lg text-zinc-400 hover:text-red-400 hover:bg-zinc-800"
+                          title="Выйти из аккаунта"
+                        >
+                          <LogOut className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* 🔍 Search Input Bar */}
+                    <div className="relative shrink-0">
+                      <Search className="w-4 h-4 text-zinc-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                      <input
+                        type="text"
+                        value={searchFilter}
+                        onChange={(e) => setSearchFilter(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            refreshFiles(searchFilter);
+                          }
+                        }}
+                        placeholder="Поиск по названию проповеди или темы..."
+                        className="w-full bg-zinc-950/80 border border-zinc-800 focus:border-amber-500/60 rounded-2xl pl-10 pr-10 py-2.5 text-xs sm:text-sm text-zinc-100 placeholder-zinc-500 focus:outline-none transition-all"
+                      />
+                      {searchFilter && (
+                        <button
+                          onClick={() => {
+                            setSearchFilter('');
+                            refreshFiles('');
+                          }}
+                          className="absolute right-3 top-1/2 -translate-y-1/2 p-1 rounded-lg text-zinc-500 hover:text-zinc-200"
+                        >
+                          <X className="w-3.5 h-3.5" />
                         </button>
                       )}
                     </div>
-                  ) : (
-                    filteredFiles.map((file) => (
-                      <button
-                        key={file.id}
-                        onClick={() => handleSelectDriveFile(file.id)}
-                        disabled={selectedDocId === file.id || isLoading}
-                        className={`w-full flex items-center justify-between p-3.5 rounded-2xl border text-left transition-all ${
-                          selectedDocId === file.id
-                            ? 'bg-amber-500/20 border-amber-500/50 text-amber-300'
-                            : 'bg-zinc-950/60 border-zinc-800 hover:border-zinc-700 hover:bg-zinc-800/80 text-zinc-200'
-                        }`}
-                      >
-                        <div className="flex items-center gap-3 truncate">
-                          <div className="p-2 rounded-xl bg-amber-500/10 text-amber-400 shrink-0">
-                            {file.mimeType?.includes('document') ? (
-                              <FileText className="w-4 h-4" />
-                            ) : (
-                              <FileCode className="w-4 h-4" />
-                            )}
-                          </div>
-                          <div className="truncate">
-                            <div className="text-sm font-semibold truncate text-zinc-100">{file.name}</div>
-                            <div className="text-[11px] text-zinc-500 flex items-center gap-1.5 mt-0.5">
-                              <Clock className="w-3 h-3" />
-                              <span>{new Date(file.modifiedTime).toLocaleDateString('ru-RU')}</span>
-                            </div>
-                          </div>
+
+                    {/* Counter & Label */}
+                    <div className="flex items-center justify-between text-[11px] uppercase tracking-wider font-bold text-zinc-500 px-1 shrink-0">
+                      <span>Документы Google Диска</span>
+                      <span>{filteredFiles.length} из {files.length}</span>
+                    </div>
+
+                    {/* Files List */}
+                    <div className="flex-1 overflow-y-auto space-y-2 min-h-[200px] max-h-[300px] pr-1">
+                      {isLoading && files.length === 0 ? (
+                        <div className="py-12 text-center text-xs text-zinc-500 flex flex-col items-center gap-2">
+                          <RefreshCw className="w-5 h-5 animate-spin text-amber-400" />
+                          <span>Ищем все файлы на вашем Google Диске...</span>
                         </div>
-                        <ArrowRight className="w-4 h-4 opacity-50 shrink-0 ml-2 group-hover:translate-x-0.5 transition-transform" />
-                      </button>
-                    ))
+                      ) : filteredFiles.length === 0 ? (
+                        <div className="py-12 text-center text-xs text-zinc-500 space-y-2">
+                          <p>Файлов по запросу «{searchFilter}» не найдено.</p>
+                          {searchFilter && (
+                            <button
+                              onClick={() => refreshFiles(searchFilter)}
+                              className="text-amber-400 hover:underline text-xs"
+                            >
+                              Искать глубже на всем Google Диске ↵
+                            </button>
+                          )}
+                        </div>
+                      ) : (
+                        filteredFiles.map((file) => (
+                          <button
+                            key={file.id}
+                            onClick={() => handleSelectDriveFile(file.id)}
+                            disabled={selectedDocId === file.id || isLoading}
+                            className={`w-full flex items-center justify-between p-3.5 rounded-2xl border text-left transition-all ${
+                              selectedDocId === file.id
+                                ? 'bg-amber-500/20 border-amber-500/50 text-amber-300'
+                                : 'bg-zinc-950/60 border-zinc-800 hover:border-zinc-700 hover:bg-zinc-800/80 text-zinc-200'
+                            }`}
+                          >
+                            <div className="flex items-center gap-3 truncate">
+                              <div className="p-2 rounded-xl bg-amber-500/10 text-amber-400 shrink-0">
+                                {file.mimeType?.includes('document') ? (
+                                  <FileText className="w-4 h-4" />
+                                ) : (
+                                  <FileCode className="w-4 h-4" />
+                                )}
+                              </div>
+                              <div className="truncate">
+                                <div className="text-sm font-semibold truncate text-zinc-100">{file.name}</div>
+                                <div className="text-[11px] text-zinc-500 flex items-center gap-1.5 mt-0.5">
+                                  <Clock className="w-3 h-3" />
+                                  <span>{new Date(file.modifiedTime).toLocaleDateString('ru-RU')}</span>
+                                </div>
+                              </div>
+                            </div>
+                            <ArrowRight className="w-4 h-4 opacity-50 shrink-0 ml-2 group-hover:translate-x-0.5 transition-transform" />
+                          </button>
+                        ))
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* Error Message */}
+                {error && (
+                  <div className="p-3.5 rounded-2xl bg-red-950/40 border border-red-500/40 text-red-200 text-xs space-y-1 shrink-0">
+                    <div className="flex items-center gap-1.5 font-bold text-red-400">
+                      <AlertCircle className="w-4 h-4" />
+                      <span>Ошибка</span>
+                    </div>
+                    <p className="leading-relaxed text-zinc-300">{error}</p>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* TAB 2: Import by URL */}
+            {activeTab === 'link' && (
+              <div className="flex-1 overflow-y-auto space-y-4 pr-1">
+                <div className="space-y-2">
+                  <label className="text-xs font-semibold text-zinc-300 flex items-center gap-1.5">
+                    <Link2 className="w-4 h-4 text-amber-400" />
+                    <span>Ссылка на ваш Google Doc:</span>
+                  </label>
+                  <input
+                    type="url"
+                    value={docUrl}
+                    onChange={(e) => {
+                      setDocUrl(e.target.value);
+                      setUrlError(null);
+                    }}
+                    placeholder="https://docs.google.com/document/d/.../edit"
+                    className="w-full bg-zinc-950 border border-zinc-800 focus:border-amber-500/60 rounded-2xl px-4 py-3 text-sm text-zinc-100 placeholder-zinc-600 focus:outline-none"
+                  />
+                </div>
+
+                <button
+                  onClick={handleImportByUrl}
+                  disabled={isUrlLoading || !docUrl.trim()}
+                  className="w-full flex items-center justify-center gap-2 py-3 rounded-2xl text-xs sm:text-sm font-bold bg-amber-500 hover:bg-amber-400 disabled:opacity-40 text-black shadow-lg shadow-amber-500/20 transition-all active:scale-98"
+                >
+                  {isUrlLoading ? (
+                    <>
+                      <RefreshCw className="w-4 h-4 animate-spin" />
+                      <span>Загрузка...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="w-4 h-4" />
+                      <span>Импортировать в суфлёр</span>
+                    </>
                   )}
+                </button>
+
+                {urlError && (
+                  <div className="p-3.5 rounded-2xl bg-red-950/40 border border-red-500/40 text-red-200 text-xs">
+                    {urlError}
+                  </div>
+                )}
+
+                <div className="p-4 rounded-2xl bg-zinc-950/60 border border-zinc-800/80 text-[11px] text-zinc-400 space-y-1">
+                  <span className="font-semibold text-zinc-300">💡 Как открыть доступ по ссылке:</span>
+                  <p>В Google Docs нажмите «Поделиться» $\to$ «Все, у кого есть ссылка (Просмотр)» $\to$ скопируйте ссылку.</p>
                 </div>
               </div>
             )}
-
-            {/* Error Message */}
-            {error && (
-              <div className="p-3.5 rounded-2xl bg-red-950/40 border border-red-500/40 text-red-200 text-xs space-y-1 shrink-0">
-                <div className="flex items-center gap-1.5 font-bold text-red-400">
-                  <AlertCircle className="w-4 h-4" />
-                  <span>Ошибка</span>
-                </div>
-                <p className="leading-relaxed text-zinc-300">{error}</p>
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* TAB 2: Import by URL */}
-        {activeTab === 'link' && (
-          <div className="flex-1 overflow-y-auto space-y-4 pr-1">
-            <div className="space-y-2">
-              <label className="text-xs font-semibold text-zinc-300 flex items-center gap-1.5">
-                <Link2 className="w-4 h-4 text-amber-400" />
-                <span>Ссылка на ваш Google Doc:</span>
-              </label>
-              <input
-                type="url"
-                value={docUrl}
-                onChange={(e) => {
-                  setDocUrl(e.target.value);
-                  setUrlError(null);
-                }}
-                placeholder="https://docs.google.com/document/d/.../edit"
-                className="w-full bg-zinc-950 border border-zinc-800 focus:border-amber-500/60 rounded-2xl px-4 py-3 text-sm text-zinc-100 placeholder-zinc-600 focus:outline-none"
-              />
-            </div>
-
-            <button
-              onClick={handleImportByUrl}
-              disabled={isUrlLoading || !docUrl.trim()}
-              className="w-full flex items-center justify-center gap-2 py-3 rounded-2xl text-xs sm:text-sm font-bold bg-amber-500 hover:bg-amber-400 disabled:opacity-40 text-black shadow-lg shadow-amber-500/20 transition-all active:scale-98"
-            >
-              {isUrlLoading ? (
-                <>
-                  <RefreshCw className="w-4 h-4 animate-spin" />
-                  <span>Загрузка...</span>
-                </>
-              ) : (
-                <>
-                  <Sparkles className="w-4 h-4" />
-                  <span>Импортировать в суфлёр</span>
-                </>
-              )}
-            </button>
-
-            {urlError && (
-              <div className="p-3.5 rounded-2xl bg-red-950/40 border border-red-500/40 text-red-200 text-xs">
-                {urlError}
-              </div>
-            )}
-
-            <div className="p-4 rounded-2xl bg-zinc-950/60 border border-zinc-800/80 text-[11px] text-zinc-400 space-y-1">
-              <span className="font-semibold text-zinc-300">💡 Как открыть доступ по ссылке:</span>
-              <p>В Google Docs нажмите «Поделиться» $\to$ «Все, у кого есть ссылка (Просмотр)» $\to$ скопируйте ссылку.</p>
-            </div>
-          </div>
+          </>
         )}
       </div>
     </div>
