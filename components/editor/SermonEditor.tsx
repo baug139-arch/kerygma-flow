@@ -363,11 +363,40 @@ export function SermonEditor({ sermon, onSave, onLaunchPulpit, onBack }: SermonE
     return () => document.removeEventListener('selectionchange', handleSelectionChange);
   }, []);
 
+  // Custom History Stack for robust Undo / Redo of all changes (typing & formatting)
+  const historyRef = useRef<{ stack: string[]; index: number }>({
+    stack: [],
+    index: -1,
+  });
+  const inputTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  const pushHistorySnapshot = useCallback((forceHtml?: string) => {
+    if (!editorRef.current) return;
+    const currentHtml = forceHtml !== undefined ? forceHtml : editorRef.current.innerHTML;
+    const { stack, index } = historyRef.current;
+
+    if (index >= 0 && stack[index] === currentHtml) return;
+
+    const newStack = stack.slice(0, index + 1);
+    newStack.push(currentHtml);
+    if (newStack.length > 50) newStack.shift();
+
+    historyRef.current = {
+      stack: newStack,
+      index: newStack.length - 1,
+    };
+  }, []);
+
   // Initialize visual content from sermon markdown
   useEffect(() => {
     if (editorRef.current) {
-      editorRef.current.innerHTML = markdownToHtml(sermon.content);
+      const initialHtml = markdownToHtml(sermon.content);
+      editorRef.current.innerHTML = initialHtml;
       updateWordCount();
+      historyRef.current = {
+        stack: [initialHtml],
+        index: 0,
+      };
     }
   }, [sermon.id]);
 
@@ -377,6 +406,14 @@ export function SermonEditor({ sermon, onSave, onLaunchPulpit, onBack }: SermonE
       const count = text.trim().split(/\s+/).filter(Boolean).length;
       setWordCount(count);
     }
+  };
+
+  const handleInput = () => {
+    updateWordCount();
+    if (inputTimerRef.current) clearTimeout(inputTimerRef.current);
+    inputTimerRef.current = setTimeout(() => {
+      pushHistorySnapshot();
+    }, 400);
   };
 
   const handleSave = useCallback(() => {
@@ -518,6 +555,7 @@ export function SermonEditor({ sermon, onSave, onLaunchPulpit, onBack }: SermonE
       newEl.textContent = cleanText;
     }
 
+    pushHistorySnapshot();
     editorRef.current.replaceChild(newEl, currentBlock);
 
     // Place caret at end of the new element
@@ -531,6 +569,7 @@ export function SermonEditor({ sermon, onSave, onLaunchPulpit, onBack }: SermonE
       lastRangeRef.current = range;
     }
 
+    pushHistorySnapshot();
     updateWordCount();
     setBubblePos(null);
   };
@@ -540,7 +579,9 @@ export function SermonEditor({ sermon, onSave, onLaunchPulpit, onBack }: SermonE
     if (!editorRef.current) return;
     editorRef.current.focus();
     restoreSelection();
+    pushHistorySnapshot();
     document.execCommand('bold', false);
+    pushHistorySnapshot();
     updateWordCount();
     saveSelection();
     setBubblePos(null);
@@ -550,7 +591,9 @@ export function SermonEditor({ sermon, onSave, onLaunchPulpit, onBack }: SermonE
     if (!editorRef.current) return;
     editorRef.current.focus();
     restoreSelection();
+    pushHistorySnapshot();
     document.execCommand('italic', false);
+    pushHistorySnapshot();
     updateWordCount();
     saveSelection();
     setBubblePos(null);
@@ -560,6 +603,7 @@ export function SermonEditor({ sermon, onSave, onLaunchPulpit, onBack }: SermonE
     if (!editorRef.current) return;
     editorRef.current.focus();
     restoreSelection();
+    pushHistorySnapshot();
 
     const sel = window.getSelection();
     const text = sel && sel.toString() ? sel.toString().trim() : '';
@@ -570,6 +614,7 @@ export function SermonEditor({ sermon, onSave, onLaunchPulpit, onBack }: SermonE
     } else {
       document.execCommand('bold', false);
     }
+    pushHistorySnapshot();
     updateWordCount();
     saveSelection();
     setBubblePos(null);
@@ -577,24 +622,62 @@ export function SermonEditor({ sermon, onSave, onLaunchPulpit, onBack }: SermonE
 
   const applyUndo = () => {
     if (!editorRef.current) return;
-    editorRef.current.focus();
-    document.execCommand('undo', false);
-    updateWordCount();
+    const { stack, index } = historyRef.current;
+    if (index > 0) {
+      const newIndex = index - 1;
+      historyRef.current.index = newIndex;
+      editorRef.current.innerHTML = stack[newIndex];
+      updateWordCount();
+      editorRef.current.focus();
+    } else {
+      document.execCommand('undo', false);
+      updateWordCount();
+    }
+    setBubblePos(null);
   };
 
   const applyRedo = () => {
     if (!editorRef.current) return;
-    editorRef.current.focus();
-    document.execCommand('redo', false);
-    updateWordCount();
+    const { stack, index } = historyRef.current;
+    if (index < stack.length - 1) {
+      const newIndex = index + 1;
+      historyRef.current.index = newIndex;
+      editorRef.current.innerHTML = stack[newIndex];
+      updateWordCount();
+      editorRef.current.focus();
+    } else {
+      document.execCommand('redo', false);
+      updateWordCount();
+    }
+    setBubblePos(null);
   };
 
-  // Keyboard Enter handler: prevent broken nested cards
+  // Keyboard handlers: shortcuts for undo/redo and enter key
   const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    // Undo: Cmd+Z or Ctrl+Z
+    if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'z') {
+      e.preventDefault();
+      if (e.shiftKey) {
+        applyRedo();
+      } else {
+        applyUndo();
+      }
+      return;
+    }
+
+    // Redo: Cmd+Y or Ctrl+Y
+    if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'y') {
+      e.preventDefault();
+      applyRedo();
+      return;
+    }
+
+    // Enter key handling
     if (e.key === 'Enter' && !e.shiftKey) {
       const block = getSelectedBlockElement();
       if (block && block.getAttribute('data-block')) {
         e.preventDefault();
+        pushHistorySnapshot();
         const p = document.createElement('p');
         p.className = 'my-3 leading-relaxed text-zinc-200 text-lg';
         p.innerHTML = '<br>';
@@ -609,6 +692,7 @@ export function SermonEditor({ sermon, onSave, onLaunchPulpit, onBack }: SermonE
           sel.addRange(range);
           lastRangeRef.current = range;
         }
+        pushHistorySnapshot();
         updateWordCount();
       }
     }
@@ -815,7 +899,7 @@ export function SermonEditor({ sermon, onSave, onLaunchPulpit, onBack }: SermonE
             ref={editorRef}
             contentEditable
             suppressContentEditableWarning
-            onInput={updateWordCount}
+            onInput={handleInput}
             onBlur={saveSelection}
             onMouseUp={saveSelection}
             onKeyUp={saveSelection}
