@@ -190,13 +190,9 @@ export default function DashboardPage() {
               А
             </div>
             <div>
-              <h1 className="text-base sm:text-lg font-extrabold tracking-tight flex items-center gap-2">
+              <h1 className="text-base sm:text-lg font-extrabold tracking-tight">
                 Амвон
-                <span className="text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-400 border border-amber-500/20">
-                  Кафедра
-                </span>
               </h1>
-              <p className="text-[11px] text-zinc-500 hidden sm:block">Сценический суфлёр-пульт для проповедников</p>
             </div>
           </div>
 

@@ -1,7 +1,7 @@
 {
   "name": "Амвон",
   "short_name": "Амвон",
-  "description": "Сценический суфлёр-пульт для проповеди с синхронизацией Google Docs и Библии",
+  "description": "Амвон",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#000000",

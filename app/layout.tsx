@@ -2,8 +2,8 @@ import type { Metadata, Viewport } from 'next';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'Амвон — Сценический суфлёр-пульт для проповеди',
-  description: 'Профессиональный суфлёр-пульт для проповедников и спикеров с синхронизацией Google Docs и Библии',
+  title: 'Амвон',
+  description: 'Амвон',
   manifest: '/manifest.json',
   icons: {
     icon: '/icon.svg',
