@@ -964,35 +964,6 @@ export function SermonEditor({ sermon, onSave, onLaunchPulpit, onBack }: SermonE
 
           <div className="w-6 h-px bg-zinc-800 my-0.5" />
 
-          {/* Introduction and Conclusion Section Buttons */}
-          <button
-            onMouseDown={(e) => {
-              e.preventDefault();
-              applyIntroduction();
-            }}
-            onMouseEnter={() => setHoveredTool('Введение (Начало проповеди)')}
-            onMouseLeave={() => setHoveredTool(null)}
-            className="p-2.5 rounded-xl text-emerald-400 hover:bg-emerald-500/10 transition-all active:scale-90"
-            title="Введение"
-          >
-            <Compass className="w-4 h-4" />
-          </button>
-
-          <button
-            onMouseDown={(e) => {
-              e.preventDefault();
-              applyConclusion();
-            }}
-            onMouseEnter={() => setHoveredTool('Заключение и призыв (Финал)')}
-            onMouseLeave={() => setHoveredTool(null)}
-            className="p-2.5 rounded-xl text-amber-400 hover:bg-amber-500/10 transition-all active:scale-90"
-            title="Заключение и призыв"
-          >
-            <Flag className="w-4 h-4 fill-current" />
-          </button>
-
-          <div className="w-6 h-px bg-zinc-800 my-0.5" />
-
           {/* Special Semantic Blocks */}
           <button
             onMouseDown={(e) => {
