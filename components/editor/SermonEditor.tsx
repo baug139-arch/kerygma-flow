@@ -58,6 +58,38 @@ function markdownToHtml(md: string): string {
       continue;
     }
 
+    // Intro Block (## 🧭 ...)
+    if (line.startsWith('## 🧭') || line.toLowerCase().startsWith('## введение') || line.toLowerCase().startsWith('## 1. введение')) {
+      const text = line.replace(/^##\s*(🧭|\d+\.)?\s*/i, '').trim();
+      html += `
+        <div class="my-5 p-5 rounded-2xl bg-gradient-to-r from-teal-950/40 via-emerald-950/30 to-zinc-900/40 border-l-4 border-emerald-400 border-y border-r border-emerald-500/20 text-emerald-100 shadow-md" data-block="intro">
+          <div class="text-emerald-400 font-bold text-xs uppercase tracking-wider flex items-center gap-1.5 mb-2 select-none" contenteditable="false">
+            <span>🧭</span>
+            <span>Введение / Старт</span>
+          </div>
+          <div class="text-2xl font-black text-emerald-200 tracking-tight intro-text">${escapeHtml(text || 'Введение')}</div>
+        </div><p><br></p>
+      `;
+      i++;
+      continue;
+    }
+
+    // Conclusion Block (## 🏁 ...)
+    if (line.startsWith('## 🏁') || line.toLowerCase().startsWith('## заключение') || line.toLowerCase().startsWith('## призыв')) {
+      const text = line.replace(/^##\s*(🏁)?\s*/i, '').trim();
+      html += `
+        <div class="my-5 p-5 rounded-2xl bg-gradient-to-r from-amber-950/40 via-orange-950/30 to-zinc-900/40 border-l-4 border-amber-400 border-y border-r border-amber-500/20 text-amber-100 shadow-md" data-block="conclusion">
+          <div class="text-amber-400 font-bold text-xs uppercase tracking-wider flex items-center gap-1.5 mb-2 select-none" contenteditable="false">
+            <span>🏁</span>
+            <span>Заключение / Призыв</span>
+          </div>
+          <div class="text-2xl font-black text-amber-200 tracking-tight conclusion-text">${escapeHtml(text || 'Заключение и призыв')}</div>
+        </div><p><br></p>
+      `;
+      i++;
+      continue;
+    }
+
     // H2
     if (line.startsWith('## ')) {
       const text = line.replace('## ', '').trim();
@@ -210,6 +242,18 @@ function htmlToMarkdown(element: HTMLElement): string {
         const header = el.getAttribute('data-header') || el.querySelector('.scripture-title-text')?.textContent || 'Священное Писание';
         const bodyText = el.querySelector('.font-serif')?.textContent || el.textContent || '';
         return `\n\n> 📖 **${header.trim()}**\n> ${bodyText.trim()}\n\n`;
+      }
+
+      // Check for Intro Card
+      if (el.getAttribute('data-block') === 'intro') {
+        const text = el.querySelector('.intro-text')?.textContent || el.textContent?.replace('🧭 Введение / Старт', '') || 'Введение';
+        return `\n\n## 🧭 ${text.trim()}\n\n`;
+      }
+
+      // Check for Conclusion Card
+      if (el.getAttribute('data-block') === 'conclusion') {
+        const text = el.querySelector('.conclusion-text')?.textContent || el.textContent?.replace('🏁 Заключение / Призыв', '') || 'Заключение и призыв';
+        return `\n\n## 🏁 ${text.trim()}\n\n`;
       }
 
       // Check for Story Card
@@ -383,31 +427,71 @@ export function SermonEditor({ sermon, onSave, onLaunchPulpit, onBack }: SermonE
     saveSelection();
   };
 
-  // Introduction Block
+  // Introduction Block (🧭)
   const applyIntroduction = () => {
     if (!editorRef.current) return;
     editorRef.current.focus();
     restoreSelection();
 
     const selection = window.getSelection();
-    const text = selection && selection.toString() ? selection.toString() : 'Введение: Когда шторм застает врасплох';
+    let text = selection && selection.toString().trim() ? selection.toString().trim() : '';
 
-    const introHtml = `<h2 class="text-2xl font-extrabold text-amber-300 border-l-4 border-amber-500 pl-4 my-5 tracking-tight">1. ${escapeHtml(text.replace(/^\d+\.\s*/, ''))}</h2><p><br></p>`;
+    if (!text) {
+      const parentBlock = selection?.anchorNode?.parentElement;
+      const currentBlockText = parentBlock?.textContent?.trim() || '';
+      if (currentBlockText && currentBlockText !== 'Введение' && !currentBlockText.startsWith('🧭')) {
+        text = currentBlockText;
+      } else {
+        text = 'Введение';
+      }
+    }
+
+    const cleanText = text.replace(/^[#\d.\s🧭]+/, '').trim() || 'Введение';
+
+    const introHtml = `
+      <div class="my-5 p-5 rounded-2xl bg-gradient-to-r from-teal-950/40 via-emerald-950/30 to-zinc-900/40 border-l-4 border-emerald-400 border-y border-r border-emerald-500/20 text-emerald-100 shadow-md" data-block="intro">
+        <div class="text-emerald-400 font-bold text-xs uppercase tracking-wider flex items-center gap-1.5 mb-2 select-none" contenteditable="false">
+          <span>🧭</span>
+          <span>Введение / Старт</span>
+        </div>
+        <div class="text-2xl font-black text-emerald-200 tracking-tight intro-text">${escapeHtml(cleanText)}</div>
+      </div><p><br></p>
+    `;
     document.execCommand('insertHTML', false, introHtml);
     updateWordCount();
     saveSelection();
   };
 
-  // Conclusion Block
+  // Conclusion Block (🏁)
   const applyConclusion = () => {
     if (!editorRef.current) return;
     editorRef.current.focus();
     restoreSelection();
 
     const selection = window.getSelection();
-    const text = selection && selection.toString() ? selection.toString() : 'Заключение и призыв к молитве';
+    let text = selection && selection.toString().trim() ? selection.toString().trim() : '';
 
-    const conclusionHtml = `<h2 class="text-2xl font-extrabold text-amber-300 border-l-4 border-amber-500 pl-4 my-5 tracking-tight">🏁 ${escapeHtml(text.replace(/^🏁\s*/, ''))}</h2><p><br></p>`;
+    if (!text) {
+      const parentBlock = selection?.anchorNode?.parentElement;
+      const currentBlockText = parentBlock?.textContent?.trim() || '';
+      if (currentBlockText && currentBlockText !== 'Заключение' && !currentBlockText.startsWith('🏁')) {
+        text = currentBlockText;
+      } else {
+        text = 'Заключение и призыв';
+      }
+    }
+
+    const cleanText = text.replace(/^[#\d.\s🏁]+/, '').trim() || 'Заключение и призыв';
+
+    const conclusionHtml = `
+      <div class="my-5 p-5 rounded-2xl bg-gradient-to-r from-amber-950/40 via-orange-950/30 to-zinc-900/40 border-l-4 border-amber-400 border-y border-r border-amber-500/20 text-amber-100 shadow-md" data-block="conclusion">
+        <div class="text-amber-400 font-bold text-xs uppercase tracking-wider flex items-center gap-1.5 mb-2 select-none" contenteditable="false">
+          <span>🏁</span>
+          <span>Заключение / Призыв</span>
+        </div>
+        <div class="text-2xl font-black text-amber-200 tracking-tight conclusion-text">${escapeHtml(cleanText)}</div>
+      </div><p><br></p>
+    `;
     document.execCommand('insertHTML', false, conclusionHtml);
     updateWordCount();
     saveSelection();

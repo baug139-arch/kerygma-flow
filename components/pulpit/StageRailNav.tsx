@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Flag, Bookmark, ChevronRight } from 'lucide-react';
+import { Flag, Bookmark, ChevronRight, Compass } from 'lucide-react';
 import { OutlineItem, ThemeMode } from '@/lib/types';
 
 interface StageRailNavProps {
@@ -58,12 +58,15 @@ export function StageRailNav({
       >
         {outline.map((item, index) => {
           const isActive = activeId === item.id;
+          const titleLower = item.title.toLowerCase();
+          const isIntro = index === 0 && (item.title.includes('🧭') || titleLower.includes('введение') || titleLower.includes('вступление'));
           const isLast = index === outline.length - 1;
           const isConclusion =
-            isLast ||
-            item.title.toLowerCase().includes('заключ') ||
-            item.title.toLowerCase().includes('призыв') ||
-            item.title.toLowerCase().includes('молитв');
+            item.title.includes('🏁') ||
+            titleLower.includes('заключ') ||
+            titleLower.includes('призыв') ||
+            titleLower.includes('молитв') ||
+            (isLast && index > 1);
 
           return (
             <div key={item.id} className="relative flex items-center">
@@ -73,13 +76,12 @@ export function StageRailNav({
                   className={`absolute right-full mr-3 px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap border backdrop-blur-xl animate-in fade-in slide-in-from-right-2 duration-150 pointer-events-none z-40 max-w-xs truncate ${themeStyles.tooltip}`}
                 >
                   <div className="flex items-center gap-1.5">
-                    <span className="opacity-60">{index + 1}.</span>
                     <span>{item.title}</span>
                   </div>
                 </div>
               )}
 
-              {/* Number/Flag Button */}
+              {/* Number/Compass/Flag Button */}
               <button
                 onClick={() => onSelectSection(item.id)}
                 onMouseEnter={() => setHoveredId(item.id)}
@@ -87,12 +89,14 @@ export function StageRailNav({
                 className={`flex items-center justify-center w-8 h-8 sm:w-9 sm:h-9 rounded-full text-xs font-bold border transition-all duration-200 ${
                   isActive ? themeStyles.activeItem : themeStyles.item
                 }`}
-                title={`${index + 1}. ${item.title}`}
+                title={item.title}
               >
-                {isConclusion && index > 1 ? (
+                {isIntro ? (
+                  <Compass className="w-3.5 h-3.5" />
+                ) : isConclusion ? (
                   <Flag className="w-3.5 h-3.5 fill-current" />
                 ) : (
-                  <span>{index + 1}</span>
+                  <span>{isIntro ? '🧭' : index}</span>
                 )}
               </button>
             </div>

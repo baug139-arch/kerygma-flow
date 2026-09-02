@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { BookOpen, Sparkles, Quote, Bookmark, Megaphone } from 'lucide-react';
+import { BookOpen, Sparkles, Quote, Bookmark, Megaphone, Compass, Flag } from 'lucide-react';
 import { ThemeMode } from '@/lib/types';
 import { parseBibleReferences, getVerseData } from '@/lib/bible/parser';
 
@@ -28,6 +28,15 @@ export function Teleprompter({
           h1: 'text-amber-400 border-b border-zinc-800 pb-3 font-black',
           h2: 'text-amber-300 border-l-4 border-amber-500 pl-4 my-6 font-extrabold',
           h3: 'text-zinc-200 font-bold',
+          // Special Intro & Conclusion Stage Blocks
+          introCard:
+            'my-7 p-6 sm:p-7 rounded-3xl bg-gradient-to-r from-teal-950/50 via-emerald-950/40 to-zinc-950/60 border-l-4 border-emerald-400 border-y border-r border-emerald-500/20 text-emerald-100 shadow-[0_0_25px_rgba(16,185,129,0.12)]',
+          introBadge: 'text-emerald-400 font-bold text-xs uppercase tracking-wider flex items-center gap-1.5 mb-2',
+          introTitle: 'text-2xl sm:text-3xl font-black text-emerald-200 tracking-tight',
+          conclusionCard:
+            'my-7 p-6 sm:p-7 rounded-3xl bg-gradient-to-r from-amber-950/50 via-orange-950/40 to-zinc-950/60 border-l-4 border-amber-400 border-y border-r border-amber-500/20 text-amber-100 shadow-[0_0_25px_rgba(245,158,11,0.12)]',
+          conclusionBadge: 'text-amber-400 font-bold text-xs uppercase tracking-wider flex items-center gap-1.5 mb-2',
+          conclusionTitle: 'text-2xl sm:text-3xl font-black text-amber-200 tracking-tight',
           // Special Scripture Card Style
           scriptureCard:
             'my-6 p-6 rounded-2xl bg-gradient-to-r from-amber-950/30 via-zinc-900/40 to-zinc-950/20 border-l-4 border-amber-400 border-y border-r border-amber-500/20 shadow-[0_4px_20px_rgba(0,0,0,0.5)]',
@@ -51,6 +60,15 @@ export function Teleprompter({
           h1: 'text-[#683b0e] border-b border-[#e4d4b8] pb-3 font-black',
           h2: 'text-[#8c5218] border-l-4 border-[#8c5218] pl-4 my-6 font-extrabold',
           h3: 'text-[#433422] font-bold',
+          // Special Intro & Conclusion Stage Blocks
+          introCard:
+            'my-7 p-6 sm:p-7 rounded-3xl bg-[#e3efe9] border-l-4 border-[#2b6a55] border-y border-r border-[#2b6a55]/30 text-[#143d30] shadow-sm',
+          introBadge: 'text-[#2b6a55] font-bold text-xs uppercase tracking-wider flex items-center gap-1.5 mb-2',
+          introTitle: 'text-2xl sm:text-3xl font-black text-[#143d30] tracking-tight',
+          conclusionCard:
+            'my-7 p-6 sm:p-7 rounded-3xl bg-[#faecd6] border-l-4 border-[#a66a1e] border-y border-r border-[#a66a1e]/30 text-[#543309] shadow-sm',
+          conclusionBadge: 'text-[#a66a1e] font-bold text-xs uppercase tracking-wider flex items-center gap-1.5 mb-2',
+          conclusionTitle: 'text-2xl sm:text-3xl font-black text-[#543309] tracking-tight',
           // Special Scripture Card Style
           scriptureCard:
             'my-6 p-6 rounded-2xl bg-[#f0dfc2] border-l-4 border-[#8c5218] border-y border-r border-[#dfcfb0] shadow-sm',
@@ -75,6 +93,15 @@ export function Teleprompter({
           h1: 'text-zinc-950 border-b border-zinc-200 pb-3 font-black',
           h2: 'text-blue-900 border-l-4 border-blue-600 pl-4 my-6 font-extrabold',
           h3: 'text-zinc-800 font-bold',
+          // Special Intro & Conclusion Stage Blocks
+          introCard:
+            'my-7 p-6 sm:p-7 rounded-3xl bg-emerald-50 border-l-4 border-emerald-600 border-y border-r border-emerald-200 text-emerald-950 shadow-sm',
+          introBadge: 'text-emerald-700 font-bold text-xs uppercase tracking-wider flex items-center gap-1.5 mb-2',
+          introTitle: 'text-2xl sm:text-3xl font-black text-emerald-950 tracking-tight',
+          conclusionCard:
+            'my-7 p-6 sm:p-7 rounded-3xl bg-amber-50 border-l-4 border-amber-500 border-y border-r border-amber-200 text-amber-950 shadow-sm',
+          conclusionBadge: 'text-amber-700 font-bold text-xs uppercase tracking-wider flex items-center gap-1.5 mb-2',
+          conclusionTitle: 'text-2xl sm:text-3xl font-black text-amber-950 tracking-tight',
           // Special Scripture Card Style
           scriptureCard:
             'my-6 p-6 rounded-2xl bg-gradient-to-r from-blue-50/90 to-indigo-50/50 border-l-4 border-blue-600 border-y border-r border-blue-200 shadow-sm',
@@ -99,7 +126,7 @@ export function Teleprompter({
 
   // Group markdown lines into structured semantic blocks
   const blocks: Array<{
-    type: 'h1' | 'h2' | 'h3' | 'scripture' | 'author-quote' | 'cue' | 'story' | 'bullet' | 'numbered' | 'paragraph';
+    type: 'h1' | 'h2' | 'h3' | 'intro' | 'conclusion' | 'scripture' | 'author-quote' | 'cue' | 'story' | 'bullet' | 'numbered' | 'paragraph';
     content: string;
     header?: string;
     index: number;
@@ -120,6 +147,30 @@ export function Teleprompter({
     // Heading 1
     if (line.startsWith('# ')) {
       blocks.push({ type: 'h1', content: line.replace('# ', ''), index: i });
+      i++;
+      continue;
+    }
+
+    // Intro Block (## 🧭 ...)
+    if (line.startsWith('## 🧭') || line.toLowerCase().startsWith('## введение') || line.toLowerCase().startsWith('## 1. введение')) {
+      const clean = line.replace(/^##\s*(🧭|\d+\.)?\s*/i, '').trim() || 'Введение';
+      blocks.push({
+        type: 'intro',
+        content: clean,
+        index: i,
+      });
+      i++;
+      continue;
+    }
+
+    // Conclusion Block (## 🏁 ...)
+    if (line.startsWith('## 🏁') || line.toLowerCase().startsWith('## заключение') || line.toLowerCase().startsWith('## призыв')) {
+      const clean = line.replace(/^##\s*(🏁)?\s*/i, '').trim() || 'Заключение и призыв';
+      blocks.push({
+        type: 'conclusion',
+        content: clean,
+        index: i,
+      });
       i++;
       continue;
     }
@@ -266,6 +317,40 @@ export function Teleprompter({
                 >
                   {block.content}
                 </h1>
+              );
+
+            case 'intro':
+              return (
+                <div
+                  id={`heading-${block.index}`}
+                  key={idx}
+                  className={themeStyles.introCard}
+                >
+                  <div className={themeStyles.introBadge}>
+                    <Compass className="w-4 h-4 shrink-0 animate-pulse text-emerald-400" />
+                    <span>Введение / Старт</span>
+                  </div>
+                  <div className={themeStyles.introTitle}>
+                    {block.content}
+                  </div>
+                </div>
+              );
+
+            case 'conclusion':
+              return (
+                <div
+                  id={`heading-${block.index}`}
+                  key={idx}
+                  className={themeStyles.conclusionCard}
+                >
+                  <div className={themeStyles.conclusionBadge}>
+                    <Flag className="w-4 h-4 shrink-0 fill-current text-amber-400" />
+                    <span>Заключение / Призыв</span>
+                  </div>
+                  <div className={themeStyles.conclusionTitle}>
+                    {block.content}
+                  </div>
+                </div>
               );
 
             case 'h2':
