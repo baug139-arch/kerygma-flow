@@ -20,6 +20,7 @@ import {
   Quote,
   Pilcrow,
   BookOpen,
+  ScrollText,
   Sliders,
   RotateCcw,
   X,
@@ -511,10 +512,10 @@ export function SermonEditor({ sermon, onSave, onLaunchPulpit, onBack }: SermonE
       `;
     } else if (type === 'story') {
       newEl = document.createElement('div');
-      newEl.className = 'my-4 p-5 rounded-2xl bg-zinc-900/50 border-l-4 border-zinc-600 text-zinc-300 shadow-sm';
+      newEl.className = 'my-5 p-5 sm:p-6 rounded-2xl bg-zinc-900/60 border border-zinc-800 text-zinc-200 shadow-md';
       newEl.setAttribute('data-block', 'story');
       newEl.innerHTML = `
-        <div class="italic font-serif leading-relaxed">${escapeHtml(cleanText)}</div>
+        <div class="italic font-serif text-lg sm:text-xl leading-relaxed text-zinc-200">«${escapeHtml(cleanText.replace(/^[«"]+|[»"]+$/g, ''))}»</div>
       `;
     } else if (type === 'cue') {
       newEl = document.createElement('div');
@@ -799,10 +800,20 @@ export function SermonEditor({ sermon, onSave, onLaunchPulpit, onBack }: SermonE
             <button
               onMouseDown={(e) => {
                 e.preventDefault();
+                applyBlockFormat('story');
+              }}
+              className="p-2 rounded-xl hover:bg-zinc-800 text-zinc-300 hover:text-amber-300 transition-colors"
+              title="Текст Писания (темная карточка)"
+            >
+              <ScrollText className="w-4 h-4" />
+            </button>
+            <button
+              onMouseDown={(e) => {
+                e.preventDefault();
                 applyBlockFormat('scripture');
               }}
               className="p-2 rounded-xl hover:bg-amber-500/20 text-amber-300 transition-colors"
-              title="Писание"
+              title="Писание (с заголовком)"
             >
               <BookOpen className="w-4 h-4" />
             </button>
@@ -906,9 +917,22 @@ export function SermonEditor({ sermon, onSave, onLaunchPulpit, onBack }: SermonE
           <button
             onMouseDown={(e) => {
               e.preventDefault();
+              applyBlockFormat('story');
+            }}
+            onMouseEnter={() => setHoveredTool('Текст Писания / Отрывок (темная карточка)')}
+            onMouseLeave={() => setHoveredTool(null)}
+            className="p-2.5 rounded-xl text-zinc-300 hover:text-amber-300 hover:bg-zinc-800/80 transition-all active:scale-90"
+            title="Текст Писания (темная карточка)"
+          >
+            <ScrollText className="w-4 h-4" />
+          </button>
+
+          <button
+            onMouseDown={(e) => {
+              e.preventDefault();
               applyBlockFormat('scripture');
             }}
-            onMouseEnter={() => setHoveredTool('Цитата Писания')}
+            onMouseEnter={() => setHoveredTool('Цитата Писания (с заголовком)')}
             onMouseLeave={() => setHoveredTool(null)}
             className="p-2.5 rounded-xl text-amber-400 hover:bg-amber-500/10 transition-all active:scale-90"
             title="Священное Писание"
