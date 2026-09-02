@@ -9,11 +9,13 @@ import {
   ArrowLeft,
   Heading1,
   Heading2,
+  Heading3,
   Bold,
   Italic,
   List,
   ListOrdered,
   Lightbulb,
+  Sparkles,
   Undo2,
   Redo2,
   Megaphone,
@@ -92,6 +94,22 @@ function markdownToHtml(md: string): string {
           <span class="opacity-70">📢 Ремарка:</span>
           <span>${escapeHtml(cueText.replace('📢', '').trim())}</span>
         </div><p><br></p>
+      `;
+      i++;
+      continue;
+    }
+
+    // Illustration: [💡 Иллюстрация: ...] or [Иллюстрация: ...]
+    if (line.startsWith('[💡 Иллюстрация:') || line.startsWith('[Иллюстрация:') || line.startsWith('[💡 Пример:')) {
+      const text = line.replace(/^\[(💡\s*)?(Иллюстрация|Пример):\s*/i, '').replace(/\]$/g, '').trim();
+      html += `
+        <div class="my-5 p-5 rounded-2xl bg-gradient-to-r from-purple-950/40 via-zinc-900/40 to-zinc-950/40 border-l-4 border-purple-400 border-y border-r border-purple-500/20 text-purple-100 shadow-md" data-block="illustration">
+          <div class="text-purple-400 font-bold text-xs uppercase tracking-wider flex items-center gap-1.5 mb-2 select-none" contenteditable="false">
+            <span>💡</span>
+            <span>Иллюстрация / Пример</span>
+          </div>
+          <div class="font-sans text-lg leading-relaxed text-zinc-200">${inlineMarkdownToHtml(text)}</div>
+        </div>
       `;
       i++;
       continue;
@@ -218,6 +236,12 @@ function htmlToMarkdown(element: HTMLElement): string {
       if (el.getAttribute('data-block') === 'story') {
         const text = el.textContent?.trim() || '';
         return `\n\n*«${text.replace(/[*«»]/g, '')}»*\n\n`;
+      }
+
+      // Check for Illustration Card
+      if (el.getAttribute('data-block') === 'illustration') {
+        const text = el.querySelector('.font-sans')?.textContent || el.textContent?.replace('Иллюстрация / Пример', '') || '';
+        return `\n\n[💡 Иллюстрация: ${text.trim()}]\n\n`;
       }
 
       switch (tag) {
@@ -446,7 +470,7 @@ export function SermonEditor({ sermon, onSave, onLaunchPulpit, onBack }: SermonE
   };
 
   // ================= PARAGRAPH-LEVEL BLOCK FORMAT TRANSFORMER =================
-  const applyBlockFormat = (type: 'h1' | 'h2' | 'quote' | 'scripture' | 'cue' | 'story' | 'ul' | 'ol' | 'p') => {
+  const applyBlockFormat = (type: 'h1' | 'h2' | 'h3' | 'quote' | 'scripture' | 'story' | 'illustration' | 'cue' | 'ul' | 'ol' | 'p') => {
     if (!editorRef.current) return;
     editorRef.current.focus();
     restoreSelection();
@@ -464,10 +488,12 @@ export function SermonEditor({ sermon, onSave, onLaunchPulpit, onBack }: SermonE
     const isAlreadyThisType =
       (type === 'h1' && currentTag === 'h1') ||
       (type === 'h2' && currentTag === 'h2') ||
+      (type === 'h3' && currentTag === 'h3') ||
       (type === 'quote' && currentBlockType === 'author-quote') ||
       (type === 'scripture' && currentBlockType === 'scripture') ||
-      (type === 'cue' && currentBlockType === 'cue') ||
       (type === 'story' && currentBlockType === 'story') ||
+      (type === 'illustration' && currentBlockType === 'illustration') ||
+      (type === 'cue' && currentBlockType === 'cue') ||
       (type === 'ul' && currentTag === 'ul') ||
       (type === 'ol' && currentTag === 'ol') ||
       type === 'p';
@@ -487,6 +513,10 @@ export function SermonEditor({ sermon, onSave, onLaunchPulpit, onBack }: SermonE
       newEl = document.createElement('h2');
       newEl.className = 'text-2xl font-extrabold text-amber-300 border-l-4 border-amber-500 pl-4 my-5 tracking-tight';
       newEl.textContent = cleanText;
+    } else if (type === 'h3') {
+      newEl = document.createElement('h3');
+      newEl.className = 'text-xl sm:text-2xl font-bold text-zinc-200 border-l-2 border-zinc-600 pl-3 my-4 tracking-tight';
+      newEl.textContent = cleanText;
     } else if (type === 'quote') {
       newEl = document.createElement('div');
       newEl.className = 'my-4 p-5 rounded-2xl bg-zinc-900/60 border-l-4 border-indigo-400 text-zinc-200 shadow-sm';
@@ -497,6 +527,17 @@ export function SermonEditor({ sermon, onSave, onLaunchPulpit, onBack }: SermonE
           <span>Цитата</span>
         </div>
         <div class="font-serif text-lg leading-relaxed text-zinc-200">${escapeHtml(cleanText)}</div>
+      `;
+    } else if (type === 'illustration') {
+      newEl = document.createElement('div');
+      newEl.className = 'my-5 p-5 rounded-2xl bg-gradient-to-r from-purple-950/40 via-zinc-900/40 to-zinc-950/40 border-l-4 border-purple-400 border-y border-r border-purple-500/20 text-purple-100 shadow-md';
+      newEl.setAttribute('data-block', 'illustration');
+      newEl.innerHTML = `
+        <div class="text-purple-400 font-bold text-xs uppercase tracking-wider flex items-center gap-1.5 mb-2 select-none" contenteditable="false">
+          <span>💡</span>
+          <span>Иллюстрация / Пример</span>
+        </div>
+        <div class="font-sans text-lg leading-relaxed text-zinc-200">${escapeHtml(cleanText)}</div>
       `;
     } else if (type === 'scripture') {
       newEl = document.createElement('div');
@@ -820,6 +861,16 @@ export function SermonEditor({ sermon, onSave, onLaunchPulpit, onBack }: SermonE
             <button
               onMouseDown={(e) => {
                 e.preventDefault();
+                applyBlockFormat('illustration');
+              }}
+              className="p-2 rounded-xl hover:bg-purple-500/20 text-purple-300 transition-colors"
+              title="Иллюстрация / Пример"
+            >
+              <Sparkles className="w-4 h-4" />
+            </button>
+            <button
+              onMouseDown={(e) => {
+                e.preventDefault();
                 applyBlockFormat('p');
               }}
               className="p-2 rounded-xl hover:bg-zinc-800 text-zinc-400 hover:text-zinc-200 transition-colors"
@@ -898,6 +949,19 @@ export function SermonEditor({ sermon, onSave, onLaunchPulpit, onBack }: SermonE
             <Heading2 className="w-4 h-4" />
           </button>
 
+          <button
+            onMouseDown={(e) => {
+              e.preventDefault();
+              applyBlockFormat('h3');
+            }}
+            onMouseEnter={() => setHoveredTool('Подраздел (H3)')}
+            onMouseLeave={() => setHoveredTool(null)}
+            className="p-2.5 rounded-xl text-zinc-300 hover:text-amber-300 hover:bg-amber-500/10 transition-all active:scale-90 font-bold text-xs"
+            title="Подраздел H3"
+          >
+            <Heading3 className="w-4 h-4" />
+          </button>
+
           <div className="w-6 h-px bg-zinc-800 my-0.5" />
 
           {/* Special Semantic Blocks */}
@@ -938,6 +1002,19 @@ export function SermonEditor({ sermon, onSave, onLaunchPulpit, onBack }: SermonE
             title="Священное Писание"
           >
             <BookOpen className="w-4 h-4" />
+          </button>
+
+          <button
+            onMouseDown={(e) => {
+              e.preventDefault();
+              applyBlockFormat('illustration');
+            }}
+            onMouseEnter={() => setHoveredTool('Иллюстрация / Пример')}
+            onMouseLeave={() => setHoveredTool(null)}
+            className="p-2.5 rounded-xl text-purple-400 hover:bg-purple-500/10 transition-all active:scale-90"
+            title="Иллюстрация / Пример"
+          >
+            <Sparkles className="w-4 h-4" />
           </button>
 
           <button

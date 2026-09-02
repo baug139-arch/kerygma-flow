@@ -127,7 +127,7 @@ export function Teleprompter({
 
   // Group markdown lines into structured semantic blocks
   const blocks: Array<{
-    type: 'h1' | 'h2' | 'h3' | 'intro' | 'conclusion' | 'scripture' | 'author-quote' | 'cue' | 'story' | 'bullet' | 'numbered' | 'paragraph';
+    type: 'h1' | 'h2' | 'h3' | 'intro' | 'conclusion' | 'scripture' | 'author-quote' | 'cue' | 'story' | 'illustration' | 'bullet' | 'numbered' | 'paragraph';
     content: string;
     header?: string;
     index: number;
@@ -247,6 +247,18 @@ export function Teleprompter({
         content: textBody,
         index: i,
       });
+      continue;
+    }
+
+    // Illustration block: [💡 Иллюстрация: ...] or [Иллюстрация: ...]
+    if (line.startsWith('[💡 Иллюстрация:') || line.startsWith('[Иллюстрация:') || line.startsWith('[💡 Пример:')) {
+      const illText = line.replace(/^\[(💡\s*)?(Иллюстрация|Пример):\s*/i, '').replace(/\]$/g, '').trim();
+      blocks.push({
+        type: 'illustration',
+        content: illText,
+        index: i,
+      });
+      i++;
       continue;
     }
 
@@ -415,6 +427,19 @@ export function Teleprompter({
                     <span>{block.header || 'Священное Писание'}</span>
                   </div>
                   <div className={themeStyles.scriptureText}>
+                    {renderInlineFormatted(block.content, themeStyles)}
+                  </div>
+                </div>
+              );
+
+            case 'illustration':
+              return (
+                <div key={idx} className="my-6 p-6 rounded-2xl bg-gradient-to-r from-purple-950/40 via-zinc-900/40 to-zinc-950/40 border-l-4 border-purple-400 border-y border-r border-purple-500/20 shadow-lg">
+                  <div className="text-purple-400 font-bold text-xs uppercase tracking-wider flex items-center gap-2 mb-2 select-none">
+                    <Sparkles className="w-4 h-4 text-purple-400 shrink-0" />
+                    <span>Иллюстрация / Пример</span>
+                  </div>
+                  <div className="font-sans text-lg sm:text-xl leading-relaxed text-zinc-100">
                     {renderInlineFormatted(block.content, themeStyles)}
                   </div>
                 </div>
