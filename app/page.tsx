@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   Play,
@@ -14,6 +14,11 @@ import {
   ChevronRight,
   Trash2,
   Edit3,
+  RefreshCw,
+  CheckCircle2,
+  LogIn,
+  LogOut,
+  User as UserIcon,
 } from 'lucide-react';
 import { SAMPLE_SERMONS } from '@/lib/sampleSermons';
 import { Sermon } from '@/lib/types';
@@ -26,9 +31,12 @@ import {
   saveSermonToCloudAndLocal,
   deleteSermonFromCloudAndLocal,
   subscribeToCloudSermons,
+  syncAllLocalAndCloudSermons,
+  loginWithGoogle,
+  logoutGoogle,
 } from '@/lib/firebase/sermonSync';
 import { auth } from '@/lib/firebase/config';
-import { onAuthStateChanged } from 'firebase/auth';
+import { onAuthStateChanged, User } from 'firebase/auth';
 
 export default function DashboardPage() {
   const router = useRouter();
@@ -39,6 +47,21 @@ export default function DashboardPage() {
   const [selectedSermon, setSelectedSermon] = useState<Sermon | null>(null);
   const [isEditing, setIsEditing] = useState(false);
   const [isDriveModalOpen, setIsDriveModalOpen] = useState(false);
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [isSyncing, setIsSyncing] = useState<boolean>(false);
+
+  // Trigger full two-way sync
+  const performSync = useCallback(async (uid: string) => {
+    setIsSyncing(true);
+    try {
+      const merged = await syncAllLocalAndCloudSermons(uid);
+      if (merged.length > 0) {
+        setSermons(merged);
+      }
+    } finally {
+      setIsSyncing(false);
+    }
+  }, []);
 
   // Load from local storage and subscribe to Cloud Firestore when logged in
   useEffect(() => {
@@ -52,8 +75,13 @@ export default function DashboardPage() {
 
     let unsubscribeFirestore: () => void = () => {};
 
-    const unsubscribeAuth = onAuthStateChanged(auth, (user) => {
+    const unsubscribeAuth = onAuthStateChanged(auth, async (user) => {
+      setCurrentUser(user);
       if (user) {
+        // Run full initial sync
+        await performSync(user.uid);
+
+        // Listen for real-time cloud updates (e.g. from Mac to iPad)
         unsubscribeFirestore = subscribeToCloudSermons(user.uid, (cloudSermons) => {
           if (cloudSermons.length > 0) {
             setSermons(cloudSermons);
@@ -66,7 +94,7 @@ export default function DashboardPage() {
       unsubscribeAuth();
       unsubscribeFirestore();
     };
-  }, []);
+  }, [performSync]);
 
   const handleCreateNew = () => {
     const newSermon: Sermon = {
@@ -88,9 +116,6 @@ export default function DashboardPage() {
     saveSermonToCloudAndLocal(updated);
     setSermons((prev) => prev.map((s) => (s.id === updated.id ? updated : s)));
     setSelectedSermon(updated);
-    if (typeof window !== 'undefined') {
-      localStorage.setItem(`kerygma_sermon_${updated.id}`, JSON.stringify(updated));
-    }
   };
 
   const handleDeleteSermon = (id: string, e: React.MouseEvent) => {
@@ -125,6 +150,23 @@ export default function DashboardPage() {
     router.push(`/pulpit?id=${sermonId}`);
   };
 
+  const handleGoogleLogin = async () => {
+    setIsSyncing(true);
+    try {
+      const user = await loginWithGoogle();
+      if (user) {
+        await performSync(user.uid);
+      }
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
+  const handleGoogleLogout = async () => {
+    await logoutGoogle();
+    setCurrentUser(null);
+  };
+
   if (isEditing && selectedSermon) {
     return (
       <div className="w-screen h-screen flex flex-col">
@@ -142,56 +184,95 @@ export default function DashboardPage() {
     <div className="min-h-screen bg-black text-zinc-100 flex flex-col">
       {/* Header */}
       <header className="border-b border-zinc-800 bg-zinc-950/80 backdrop-blur-md sticky top-0 z-20">
-        <div className="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 py-3.5 flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-amber-400 to-amber-600 flex items-center justify-center text-black font-black text-xl shadow-lg shadow-amber-500/20">
+            <div className="w-9 h-9 rounded-2xl bg-gradient-to-br from-amber-400 to-amber-600 flex items-center justify-center text-black font-black text-lg shadow-lg shadow-amber-500/20">
               K
             </div>
             <div>
-              <h1 className="text-lg font-extrabold tracking-tight flex items-center gap-2">
+              <h1 className="text-base sm:text-lg font-extrabold tracking-tight flex items-center gap-2">
                 Kerygma Flow
                 <span className="text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-400 border border-amber-500/20">
                   Кафедра
                 </span>
               </h1>
-              <p className="text-xs text-zinc-500">Сценический суфлёр-пульт с интеграцией Google Docs и Библии</p>
+              <p className="text-[11px] text-zinc-500 hidden sm:block">Сценический суфлёр-пульт для спикеров</p>
             </div>
           </div>
 
-          <div className="flex items-center gap-3">
+          {/* Sync status & Actions */}
+          <div className="flex items-center gap-2 sm:gap-3">
+            {/* Google Sync Badge */}
+            {currentUser ? (
+              <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-zinc-900 border border-zinc-800 text-xs text-zinc-300">
+                <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                <span className="truncate max-w-[120px] sm:max-w-[180px] font-medium text-zinc-200">
+                  {currentUser.email}
+                </span>
+                <button
+                  onClick={() => performSync(currentUser.uid)}
+                  disabled={isSyncing}
+                  className="p-1 rounded-lg text-zinc-400 hover:text-amber-400 transition-colors ml-1"
+                  title="Синхронизировать с облаком прямо сейчас"
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 ${isSyncing ? 'animate-spin text-amber-400' : ''}`} />
+                </button>
+                <button
+                  onClick={handleGoogleLogout}
+                  className="p-1 rounded-lg text-zinc-400 hover:text-red-400 transition-colors"
+                  title="Выйти"
+                >
+                  <LogOut className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            ) : (
+              <button
+                onClick={handleGoogleLogin}
+                disabled={isSyncing}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-emerald-950/50 hover:bg-emerald-900/50 border border-emerald-500/40 text-emerald-300 transition-all shadow-sm"
+              >
+                {isSyncing ? (
+                  <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                ) : (
+                  <LogIn className="w-3.5 h-3.5" />
+                )}
+                <span>Войти (Синхронизация с Mac/iPad)</span>
+              </button>
+            )}
+
             <button
               onClick={() => setIsDriveModalOpen(true)}
-              className="flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-zinc-200 transition-all"
+              className="flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-semibold bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-zinc-200 transition-all"
             >
-              <HardDrive className="w-4 h-4 text-amber-400" />
+              <HardDrive className="w-3.5 h-3.5 text-amber-400" />
               <span className="hidden sm:inline">Google Диск</span>
             </button>
 
             <button
               onClick={handleCreateNew}
-              className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold bg-amber-500 hover:bg-amber-400 text-black shadow-lg shadow-amber-500/20 transition-all active:scale-95"
+              className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold bg-amber-500 hover:bg-amber-400 text-black shadow-lg shadow-amber-500/20 transition-all active:scale-95"
             >
-              <Plus className="w-4 h-4" />
-              <span>Создать конспект</span>
+              <Plus className="w-3.5 h-3.5" />
+              <span>Создать</span>
             </button>
           </div>
         </div>
       </header>
 
       {/* Main Container */}
-      <main className="flex-1 max-w-6xl w-full mx-auto px-6 py-8 space-y-8">
+      <main className="flex-1 max-w-6xl w-full mx-auto px-4 sm:px-6 py-6 sm:py-8 space-y-6 sm:space-y-8">
         {/* Welcome Hero / Quick Start */}
         <div className="relative rounded-3xl overflow-hidden p-6 sm:p-8 bg-gradient-to-r from-zinc-900 via-zinc-900 to-zinc-950 border border-zinc-800">
-          <div className="max-w-2xl space-y-4">
+          <div className="max-w-2xl space-y-3">
             <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-500/10 text-amber-400 border border-amber-500/20 text-xs font-semibold">
               <Sparkles className="w-3.5 h-3.5" />
-              <span>Готов к выходу на сцену</span>
+              <span>Синхронизация активна</span>
             </div>
-            <h2 className="text-2xl sm:text-3xl font-black tracking-tight">
-              Выберите конспект или подключите Google Docs
+            <h2 className="text-xl sm:text-2xl font-black tracking-tight">
+              Ваши конспекты для кафедры
             </h2>
-            <p className="text-sm text-zinc-400 leading-relaxed">
-              Kerygma Flow трансформирует текст в контрастный суфлёр с умным распознаванием стихов, секундомером регламента и поддержкой кликеров/педалей.
+            <p className="text-xs sm:text-sm text-zinc-400 leading-relaxed">
+              Все правки автоматически синхронизируются между вашим MacBook и iPad. Для выхода на кафедру нажмите на любую проповедь ниже.
             </p>
           </div>
         </div>
@@ -199,79 +280,107 @@ export default function DashboardPage() {
         {/* Sermons Grid */}
         <div className="space-y-4">
           <div className="flex items-center justify-between">
-            <h3 className="text-lg font-bold text-zinc-200">
-              Ваши проповеди ({sermons.length})
+            <h3 className="text-xs uppercase tracking-widest font-extrabold text-zinc-500">
+              Список проповедей ({sermons.length})
             </h3>
-            <span className="text-xs text-zinc-500">Нажмите для запуска режима кафедры</span>
+            {currentUser && (
+              <span className="text-[11px] text-emerald-400 flex items-center gap-1">
+                <CheckCircle2 className="w-3 h-3" />
+                <span>Синхронизировано с Google Облаком</span>
+              </span>
+            )}
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {sermons.map((sermon) => {
-              const wordCount = sermon.content.trim().split(/\s+/).filter(Boolean).length;
-              const verseCount = parseBibleReferences(sermon.content).length;
+              const refs = parseBibleReferences(sermon.content);
+              const wordCount = sermon.content.split(/\s+/).filter(Boolean).length;
+              const estMinutes = Math.round(wordCount / 115) || sermon.targetDurationMinutes;
 
               return (
                 <div
                   key={sermon.id}
-                  onClick={() => handleLaunchPulpit(sermon.id)}
-                  className="group relative flex flex-col justify-between p-5 rounded-2xl bg-zinc-900/60 hover:bg-zinc-900 border border-zinc-800/80 hover:border-amber-500/50 transition-all cursor-pointer shadow-lg hover:shadow-amber-500/5"
+                  onClick={() => {
+                    setSelectedSermon(sermon);
+                    setIsEditing(true);
+                  }}
+                  className="group relative p-5 rounded-3xl bg-zinc-900/60 hover:bg-zinc-900 border border-zinc-800/80 hover:border-amber-500/40 transition-all duration-200 cursor-pointer flex flex-col justify-between space-y-4 hover:shadow-xl hover:shadow-black/60"
                 >
                   <div className="space-y-3">
-                    <div className="flex items-center justify-between">
-                      {sermon.series ? (
-                        <span className="text-[11px] font-semibold text-amber-400 bg-amber-500/10 px-2.5 py-0.5 rounded-full border border-amber-500/20">
-                          {sermon.series}
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex items-center gap-2">
+                        <span className="p-2 rounded-2xl bg-zinc-800 group-hover:bg-amber-500/10 group-hover:text-amber-400 transition-colors text-zinc-400">
+                          <FileText className="w-4 h-4" />
                         </span>
-                      ) : (
-                        <span className="text-[11px] font-medium text-zinc-500">Без серии</span>
-                      )}
+                        {sermon.syncedFromGoogle && (
+                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-950/80 border border-blue-500/30 text-blue-300">
+                            Google Doc
+                          </span>
+                        )}
+                      </div>
 
                       <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                         <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setSelectedSermon(sermon);
-                            setIsEditing(true);
-                          }}
-                          className="p-1.5 rounded-lg text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800"
-                          title="Редактировать"
-                        >
-                          <Edit3 className="w-3.5 h-3.5" />
-                        </button>
-                        <button
                           onClick={(e) => handleDeleteSermon(sermon.id, e)}
-                          className="p-1.5 rounded-lg text-zinc-500 hover:text-red-400 hover:bg-zinc-800"
+                          className="p-1.5 rounded-xl text-zinc-500 hover:text-red-400 hover:bg-zinc-800 transition-colors"
                           title="Удалить"
                         >
-                          <Trash2 className="w-3.5 h-3.5" />
+                          <Trash2 className="w-4 h-4" />
                         </button>
                       </div>
                     </div>
 
-                    <h4 className="text-lg font-bold text-zinc-100 group-hover:text-amber-300 transition-colors line-clamp-2">
-                      {sermon.title}
-                    </h4>
+                    <div>
+                      <h4 className="font-bold text-base text-zinc-100 group-hover:text-amber-300 transition-colors line-clamp-1">
+                        {sermon.title}
+                      </h4>
+                      {sermon.series && (
+                        <p className="text-xs text-zinc-400 mt-0.5 line-clamp-1">
+                          Серия: {sermon.series}
+                        </p>
+                      )}
+                    </div>
 
-                    <p className="text-xs text-zinc-400 line-clamp-3 font-serif italic">
-                      {sermon.content.replace(/[#*`[\]]/g, '').slice(0, 140)}...
-                    </p>
+                    {/* Bible references tags */}
+                    {refs.length > 0 && (
+                      <div className="flex flex-wrap gap-1.5 pt-1">
+                        {refs.slice(0, 3).map((r, i) => (
+                          <span
+                            key={i}
+                            className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-zinc-800/80 border border-zinc-700/50 text-[11px] text-zinc-300"
+                          >
+                            <BookOpen className="w-3 h-3 text-amber-400" />
+                            <span>{r.raw}</span>
+                          </span>
+                        ))}
+                        {refs.length > 3 && (
+                          <span className="text-[10px] text-zinc-500 self-center">
+                            +{refs.length - 3}
+                          </span>
+                        )}
+                      </div>
+                    )}
                   </div>
 
-                    {/* Metadata and Start Button */}
-                    <div className="pt-4 mt-4 border-t border-zinc-800/60 flex items-center justify-between">
-                      <div className="flex items-center gap-3 text-[11px] text-zinc-400">
-                        <span className="flex items-center gap-1 font-semibold text-amber-300" title="Расчетная длительность живой проповеди">
-                          <Clock className="w-3 h-3 text-amber-400" />
-                          ~{Math.max(1, Math.round((wordCount * 2.05) / 115))} мин
-                        </span>
-                        <span className="opacity-40">•</span>
-                        <span>{wordCount} слов</span>
-                      </div>
-
-                    <div className="flex items-center gap-1 text-xs font-bold text-amber-400 group-hover:translate-x-0.5 transition-transform">
-                      <span>На кафедру</span>
-                      <ChevronRight className="w-4 h-4" />
+                  <div className="pt-3 border-t border-zinc-800/60 flex items-center justify-between text-xs text-zinc-500">
+                    <div className="flex items-center gap-3">
+                      <span className="flex items-center gap-1">
+                        <Clock className="w-3.5 h-3.5" />
+                        <span>~{estMinutes} мин</span>
+                      </span>
+                      <span>{wordCount} сл.</span>
                     </div>
+
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleLaunchPulpit(sermon.id);
+                      }}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-500/10 hover:bg-amber-500 text-amber-400 hover:text-black font-bold transition-all"
+                    >
+                      <Play className="w-3.5 h-3.5 fill-current" />
+                      <span>Кафедра</span>
+                    </button>
                   </div>
                 </div>
               );
