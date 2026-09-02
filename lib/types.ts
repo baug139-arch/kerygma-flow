@@ -28,6 +28,7 @@ export interface OutlineItem {
   title: string;
   level: number;
   estimatedMinutes?: number;
+  lineIndex?: number;
 }
 
 export interface Sermon {

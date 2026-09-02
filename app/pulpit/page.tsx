@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Teleprompter } from '@/components/pulpit/Teleprompter';
 import { StageTimer } from '@/components/pulpit/StageTimer';
@@ -14,7 +14,7 @@ import { useAutoscroll } from '@/lib/hooks/useAutoscroll';
 import { SAMPLE_SERMONS } from '@/lib/sampleSermons';
 import { OutlineItem, Sermon, ThemeMode, VerseData } from '@/lib/types';
 
-export default function PulpitPage() {
+function PulpitContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const sermonId = searchParams.get('id') || SAMPLE_SERMONS[0].id;
@@ -61,61 +61,59 @@ export default function PulpitPage() {
     initialMinutes: sermon.targetDurationMinutes || 30,
   });
 
-  // Autoscroll engine
+  // Autoscroll
   const autoscroll = useAutoscroll({
     containerRef,
     initialSpeed: 3,
   });
 
-  // Extract Outline from H1/H2
-  const outline = useMemo<OutlineItem[]>(() => {
-    const items: OutlineItem[] = [];
+  // Parse outline items from sermon markdown
+  const outlineItems: OutlineItem[] = useMemo(() => {
     const lines = sermon.content.split('\n');
-    lines.forEach((line, idx) => {
+    const items: OutlineItem[] = [];
+
+    lines.forEach((line, index) => {
       const trimmed = line.trim();
       if (trimmed.startsWith('# ')) {
         items.push({
-          id: `heading-${idx}`,
+          id: `heading-${index}`,
           title: trimmed.replace('# ', ''),
           level: 1,
+          lineIndex: index,
         });
       } else if (trimmed.startsWith('## ')) {
         items.push({
-          id: `heading-${idx}`,
+          id: `heading-${index}`,
           title: trimmed.replace('## ', ''),
           level: 2,
+          lineIndex: index,
         });
       }
     });
+
     return items;
   }, [sermon.content]);
 
-  // Set initial active section
-  useEffect(() => {
-    if (outline.length > 0 && !activeSectionId) {
-      setActiveSectionId(outline[0].id);
-    }
-  }, [outline, activeSectionId]);
-
-  // Track active section on scroll
+  // ScrollSpy to track active outline section
   useEffect(() => {
     const container = containerRef.current;
     if (!container) return;
 
     const handleScroll = () => {
-      if (outline.length === 0) return;
+      const headings = outlineItems
+        .map((item) => document.getElementById(item.id))
+        .filter(Boolean) as HTMLElement[];
 
-      const containerTop = container.getBoundingClientRect().top;
-      let currentActive = outline[0].id;
+      if (!headings.length) return;
 
-      for (const item of outline) {
-        const el = document.getElementById(item.id);
-        if (el) {
-          const rect = el.getBoundingClientRect();
-          // If heading is at or above middle of container
-          if (rect.top - containerTop <= 220) {
-            currentActive = item.id;
-          }
+      const containerTop = container.scrollTop;
+      let currentActive = headings[0].id;
+
+      for (const h of headings) {
+        if (h.offsetTop <= containerTop + 140) {
+          currentActive = h.id;
+        } else {
+          break;
         }
       }
 
@@ -124,120 +122,120 @@ export default function PulpitPage() {
 
     container.addEventListener('scroll', handleScroll, { passive: true });
     return () => container.removeEventListener('scroll', handleScroll);
-  }, [outline]);
+  }, [outlineItems]);
 
-  // Calculate word count
-  const wordCount = useMemo(() => {
-    return sermon.content.trim().split(/\s+/).filter(Boolean).length;
-  }, [sermon.content]);
-
-  // Handle section jump
-  const handleSelectSection = useCallback((id: string) => {
-    const el = document.getElementById(id);
+  // Section navigation jump
+  const handleJumpToSection = useCallback((sectionId: string) => {
+    const el = document.getElementById(sectionId);
     if (el && containerRef.current) {
       el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      setActiveSectionId(id);
+      setActiveSectionId(sectionId);
     }
   }, []);
 
-  const handleOpenVerse = (verseData: VerseData) => {
-    setActiveVerse(verseData);
-    setIsVerseModalOpen(true);
-  };
-
-  // Clicker / Keyboard listener
+  // Keyboard navigation
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Space: Toggle autoscroll (or start timer)
-      if (e.code === 'Space' && !isVerseModalOpen) {
-        e.preventDefault();
-        autoscroll.togglePlay();
-        if (timer.status === 'ready') {
-          timer.start();
-        }
-      } else if (e.code === 'ArrowUp' || e.code === 'PageUp') {
-        if (e.shiftKey) {
-          autoscroll.increaseSpeed();
-        } else if (containerRef.current) {
-          containerRef.current.scrollBy({ top: -150, behavior: 'smooth' });
-        }
-      } else if (e.code === 'ArrowDown' || e.code === 'PageDown') {
-        if (e.shiftKey) {
-          autoscroll.decreaseSpeed();
-        } else if (containerRef.current) {
-          containerRef.current.scrollBy({ top: 150, behavior: 'smooth' });
-        }
-      } else if (e.key === 'Escape') {
-        if (isVerseModalOpen) {
-          setIsVerseModalOpen(false);
-        } else if (isOutlineOpen) {
-          setIsOutlineOpen(false);
-        }
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
+        return;
+      }
+
+      switch (e.code) {
+        case 'Space':
+          e.preventDefault();
+          autoscroll.togglePlay();
+          break;
+
+        case 'ArrowDown':
+        case 'KeyJ':
+          e.preventDefault();
+          if (containerRef.current) {
+            containerRef.current.scrollBy({ top: 180, behavior: 'smooth' });
+          }
+          break;
+
+        case 'ArrowUp':
+        case 'KeyK':
+          e.preventDefault();
+          if (containerRef.current) {
+            containerRef.current.scrollBy({ top: -180, behavior: 'smooth' });
+          }
+          break;
+
+        case 'KeyT':
+          e.preventDefault();
+          timer.toggle();
+          break;
+
+        case 'KeyO':
+          e.preventDefault();
+          setIsOutlineOpen((prev) => !prev);
+          break;
+
+        case 'KeyR':
+          if (e.shiftKey) {
+            e.preventDefault();
+            timer.reset();
+          }
+          break;
+
+        case 'Escape':
+          if (isVerseModalOpen) {
+            setIsVerseModalOpen(false);
+          } else if (isOutlineOpen) {
+            setIsOutlineOpen(false);
+          } else {
+            router.push('/');
+          }
+          break;
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isVerseModalOpen, isOutlineOpen, autoscroll, timer]);
-
-  // Stage perimeter light styles
-  const getStageBorderLight = () => {
-    switch (timer.lightState) {
-      case 'overtime':
-        return 'shadow-[inset_0_0_50px_rgba(239,68,68,0.5)] border-red-600/80';
-      case 'danger':
-        return 'shadow-[inset_0_0_35px_rgba(249,115,22,0.35)] border-orange-500/60';
-      case 'warning':
-        return 'shadow-[inset_0_0_25px_rgba(234,179,8,0.25)] border-yellow-500/40';
-      default:
-        return 'border-transparent';
-    }
-  };
+  }, [autoscroll, timer, isVerseModalOpen, isOutlineOpen, router]);
 
   return (
-    <div
-      className={`relative w-screen h-screen overflow-hidden flex flex-col transition-all duration-300 border-4 ${getStageBorderLight()} ${
-        theme === 'oled' ? 'bg-black' : theme === 'sepia' ? 'bg-[#fbf0d9]' : 'bg-white'
-      }`}
-    >
-      {/* Top Left Floating Stage Timer Widget (Option A) */}
+    <div className="relative w-screen h-screen overflow-hidden select-none bg-black">
+      {/* 1. Ultra-Compact Minimalist Floating Stage Timer Capsule (Top-Left Option A) */}
       <StageTimer
         status={timer.status}
         elapsedFormatted={timer.formattedElapsed}
         remainingFormatted={timer.formattedRemaining}
         lightState={timer.lightState}
         targetMinutes={timer.targetMinutes}
-        wordCount={wordCount}
+        wordCount={sermon.content.split(/\s+/).filter(Boolean).length}
         theme={theme}
         onToggle={timer.toggle}
         onReset={timer.reset}
         onAddMinutes={timer.addMinutes}
       />
 
-      {/* Right-Side Stage Rail Navigation (Option 1) */}
+      {/* 2. Main Stage Teleprompter */}
+      <Teleprompter
+        content={sermon.content}
+        fontSize={fontSize}
+        theme={theme}
+        containerRef={containerRef}
+        onOpenVerse={(verse) => {
+          setActiveVerse(verse);
+          setIsVerseModalOpen(true);
+        }}
+      />
+
+      {/* 3. Stage Rail Nav (Right-side 1-tap jumping between sections Option 1) */}
       <StageRailNav
-        outline={outline}
+        outline={outlineItems}
         activeId={activeSectionId}
-        onSelectSection={handleSelectSection}
+        onSelectSection={handleJumpToSection}
         theme={theme}
       />
 
-      {/* Main Full-Height Teleprompter Area */}
-      <main className="flex-1 overflow-hidden relative">
-        <Teleprompter
-          content={sermon.content}
-          fontSize={fontSize}
-          theme={theme}
-          containerRef={containerRef}
-          onOpenVerse={handleOpenVerse}
-        />
-      </main>
-
-      {/* Floating Auto-Hiding Pulpit Controls HUD */}
+      {/* 4. Bottom Controls HUD (Hidden by default, iOS Home Indicator summoned Method 1) */}
       <PulpitControls
         fontSize={fontSize}
-        onIncreaseFont={() => setFontSize((f) => Math.min(56, f + 2))}
-        onDecreaseFont={() => setFontSize((f) => Math.max(20, f - 2))}
+        onIncreaseFont={() => setFontSize((f) => Math.min(64, f + 2))}
+        onDecreaseFont={() => setFontSize((f) => Math.max(18, f - 2))}
         theme={theme}
         onSetTheme={setTheme}
         isAutoscrolling={autoscroll.isPlaying}
@@ -246,27 +244,46 @@ export default function PulpitPage() {
         onIncreaseSpeed={autoscroll.increaseSpeed}
         onDecreaseSpeed={autoscroll.decreaseSpeed}
         isWakeLockActive={isWakeLockActive}
-        onToggleOutline={() => setIsOutlineOpen(!isOutlineOpen)}
+        onToggleOutline={() => setIsOutlineOpen((prev) => !prev)}
         onExit={() => router.push('/')}
       />
 
-      {/* Outline Drawer (Optional Detailed View) */}
+      {/* Outline Drawer Modal */}
       <OutlineNav
         isOpen={isOutlineOpen}
         onClose={() => setIsOutlineOpen(false)}
-        outline={outline}
+        outline={outlineItems}
         activeId={activeSectionId}
-        onSelectSection={handleSelectSection}
+        onSelectSection={(id) => {
+          handleJumpToSection(id);
+          setIsOutlineOpen(false);
+        }}
         theme={theme}
       />
 
-      {/* Scripture Verses Modal / Bottom Sheet */}
-      <VerseModal
-        isOpen={isVerseModalOpen}
-        verseData={activeVerse}
-        onClose={() => setIsVerseModalOpen(false)}
-        theme={theme}
-      />
+      {/* Verse Modal */}
+      {isVerseModalOpen && activeVerse && (
+        <VerseModal
+          isOpen={isVerseModalOpen}
+          onClose={() => setIsVerseModalOpen(false)}
+          verseData={activeVerse}
+          theme={theme}
+        />
+      )}
     </div>
+  );
+}
+
+export default function PulpitPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="w-screen h-screen bg-black flex items-center justify-center text-amber-400 text-sm font-semibold">
+          Загрузка кафедры...
+        </div>
+      }
+    >
+      <PulpitContent />
+    </Suspense>
   );
 }
