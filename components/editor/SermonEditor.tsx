@@ -429,29 +429,86 @@ export function SermonEditor({ sermon, onSave, onLaunchPulpit, onBack }: SermonE
     updateWordCount();
   };
 
+  // Helper to unwrap any custom block/card back to a normal paragraph
+  const unwrapBlockToParagraph = (blockEl: HTMLElement) => {
+    let cleanText = '';
+    const blockType = blockEl.getAttribute('data-block');
+
+    if (blockType === 'scripture') {
+      cleanText = blockEl.querySelector('.font-serif')?.textContent || blockEl.textContent || '';
+    } else if (blockType === 'author-quote') {
+      cleanText = blockEl.querySelector('.font-serif')?.textContent || blockEl.textContent?.replace('Цитата', '') || '';
+    } else if (blockType === 'intro') {
+      cleanText = blockEl.querySelector('.intro-text')?.textContent || blockEl.textContent?.replace('Введение / Старт', '') || '';
+    } else if (blockType === 'conclusion') {
+      cleanText = blockEl.querySelector('.conclusion-text')?.textContent || blockEl.textContent?.replace('Заключение / Призыв', '') || '';
+    } else if (blockType === 'cue') {
+      cleanText = blockEl.textContent?.replace('📢 Ремарка:', '').trim() || '';
+    } else if (blockType === 'story') {
+      cleanText = blockEl.querySelector('.font-serif')?.textContent || blockEl.textContent || '';
+    } else {
+      cleanText = blockEl.textContent || '';
+    }
+
+    cleanText = cleanText.replace(/^[#*`_❝❞«»\s]+|[#*`_❝❞«»\s]+$/g, '').trim();
+    if (!cleanText) cleanText = 'Текст';
+
+    const p = document.createElement('p');
+    p.className = 'my-3 leading-relaxed text-zinc-200 text-lg';
+    p.textContent = cleanText;
+
+    blockEl.parentNode?.replaceChild(p, blockEl);
+    return p;
+  };
+
   // Clear format to regular paragraph (¶)
   const applyNormalText = () => {
     if (!editorRef.current) return;
     editorRef.current.focus();
     restoreSelection();
-    document.execCommand('formatBlock', false, '<p>');
-    document.execCommand('removeFormat', false);
+
+    const selection = window.getSelection();
+    if (!selection || !selection.rangeCount) return;
+
+    const node = selection.anchorNode;
+    const parentEl = node?.nodeType === Node.ELEMENT_NODE ? (node as HTMLElement) : node?.parentElement;
+
+    // Find if inside a custom card or heading
+    const specialBlock = parentEl?.closest('[data-block], blockquote, h1, h2, h3, ul, ol, pre') as HTMLElement | null;
+
+    if (specialBlock && editorRef.current.contains(specialBlock)) {
+      unwrapBlockToParagraph(specialBlock);
+    } else {
+      document.execCommand('formatBlock', false, '<p>');
+      document.execCommand('removeFormat', false);
+    }
+
     updateWordCount();
     saveSelection();
   };
 
-  // Introduction Block (🧭)
+  // Introduction Block (🧭) - Toggles on/off
   const applyIntroduction = () => {
     if (!editorRef.current) return;
     editorRef.current.focus();
     restoreSelection();
 
     const selection = window.getSelection();
+    const parentEl = selection?.anchorNode?.parentElement;
+    const existingIntro = parentEl?.closest('[data-block="intro"]') as HTMLElement | null;
+
+    // If already intro, unwrap to normal text
+    if (existingIntro && editorRef.current.contains(existingIntro)) {
+      unwrapBlockToParagraph(existingIntro);
+      updateWordCount();
+      saveSelection();
+      return;
+    }
+
     let text = selection && selection.toString().trim() ? selection.toString().trim() : '';
 
     if (!text) {
-      const parentBlock = selection?.anchorNode?.parentElement;
-      const currentBlockText = parentBlock?.textContent?.trim() || '';
+      const currentBlockText = parentEl?.textContent?.trim() || '';
       if (currentBlockText && currentBlockText !== 'Введение' && !currentBlockText.startsWith('🧭')) {
         text = currentBlockText;
       } else {
@@ -470,23 +527,43 @@ export function SermonEditor({ sermon, onSave, onLaunchPulpit, onBack }: SermonE
         <div class="text-2xl font-black text-emerald-200 tracking-tight intro-text">${escapeHtml(cleanText)}</div>
       </div><p><br></p>
     `;
-    document.execCommand('insertHTML', false, introHtml);
+
+    // Replace parent paragraph if whole paragraph was selected
+    const parentP = parentEl?.closest('p, h1, h2, h3, div');
+    if (parentP && parentP !== editorRef.current && parentP.textContent?.trim() === cleanText) {
+      const tempDiv = document.createElement('div');
+      tempDiv.innerHTML = introHtml;
+      parentP.parentNode?.replaceChild(tempDiv.firstElementChild || tempDiv, parentP);
+    } else {
+      document.execCommand('insertHTML', false, introHtml);
+    }
+
     updateWordCount();
     saveSelection();
   };
 
-  // Conclusion Block (🏁)
+  // Conclusion Block (🏁) - Toggles on/off
   const applyConclusion = () => {
     if (!editorRef.current) return;
     editorRef.current.focus();
     restoreSelection();
 
     const selection = window.getSelection();
+    const parentEl = selection?.anchorNode?.parentElement;
+    const existingConclusion = parentEl?.closest('[data-block="conclusion"]') as HTMLElement | null;
+
+    // If already conclusion, unwrap to normal text
+    if (existingConclusion && editorRef.current.contains(existingConclusion)) {
+      unwrapBlockToParagraph(existingConclusion);
+      updateWordCount();
+      saveSelection();
+      return;
+    }
+
     let text = selection && selection.toString().trim() ? selection.toString().trim() : '';
 
     if (!text) {
-      const parentBlock = selection?.anchorNode?.parentElement;
-      const currentBlockText = parentBlock?.textContent?.trim() || '';
+      const currentBlockText = parentEl?.textContent?.trim() || '';
       if (currentBlockText && currentBlockText !== 'Заключение' && !currentBlockText.startsWith('🏁')) {
         text = currentBlockText;
       } else {
@@ -505,12 +582,21 @@ export function SermonEditor({ sermon, onSave, onLaunchPulpit, onBack }: SermonE
         <div class="text-2xl font-black text-amber-200 tracking-tight conclusion-text">${escapeHtml(cleanText)}</div>
       </div><p><br></p>
     `;
-    document.execCommand('insertHTML', false, conclusionHtml);
+
+    const parentP = parentEl?.closest('p, h1, h2, h3, div');
+    if (parentP && parentP !== editorRef.current && parentP.textContent?.trim() === cleanText) {
+      const tempDiv = document.createElement('div');
+      tempDiv.innerHTML = conclusionHtml;
+      parentP.parentNode?.replaceChild(tempDiv.firstElementChild || tempDiv, parentP);
+    } else {
+      document.execCommand('insertHTML', false, conclusionHtml);
+    }
+
     updateWordCount();
     saveSelection();
   };
 
-  // Headings
+  // Headings - Toggle to P if already heading
   const applyH1 = () => {
     if (!editorRef.current) return;
     editorRef.current.focus();
@@ -519,10 +605,15 @@ export function SermonEditor({ sermon, onSave, onLaunchPulpit, onBack }: SermonE
     const selection = window.getSelection();
     if (!selection || !selection.rangeCount) return;
 
-    document.execCommand('formatBlock', false, '<h1>');
-    const h1 = selection.anchorNode?.parentElement?.closest('h1');
-    if (h1) {
-      h1.className = 'text-3xl sm:text-4xl font-black text-amber-400 border-b border-zinc-800 pb-3 pt-4 my-4 tracking-tight';
+    const existingH1 = selection.anchorNode?.parentElement?.closest('h1');
+    if (existingH1) {
+      document.execCommand('formatBlock', false, '<p>');
+    } else {
+      document.execCommand('formatBlock', false, '<h1>');
+      const h1 = selection.anchorNode?.parentElement?.closest('h1');
+      if (h1) {
+        h1.className = 'text-3xl sm:text-4xl font-black text-amber-400 border-b border-zinc-800 pb-3 pt-4 my-4 tracking-tight';
+      }
     }
     updateWordCount();
     saveSelection();
@@ -536,10 +627,15 @@ export function SermonEditor({ sermon, onSave, onLaunchPulpit, onBack }: SermonE
     const selection = window.getSelection();
     if (!selection || !selection.rangeCount) return;
 
-    document.execCommand('formatBlock', false, '<h2>');
-    const h2 = selection.anchorNode?.parentElement?.closest('h2');
-    if (h2) {
-      h2.className = 'text-2xl font-extrabold text-amber-300 border-l-4 border-amber-500 pl-4 my-5 tracking-tight';
+    const existingH2 = selection.anchorNode?.parentElement?.closest('h2');
+    if (existingH2) {
+      document.execCommand('formatBlock', false, '<p>');
+    } else {
+      document.execCommand('formatBlock', false, '<h2>');
+      const h2 = selection.anchorNode?.parentElement?.closest('h2');
+      if (h2) {
+        h2.className = 'text-2xl font-extrabold text-amber-300 border-l-4 border-amber-500 pl-4 my-5 tracking-tight';
+      }
     }
     updateWordCount();
     saveSelection();
@@ -581,13 +677,23 @@ export function SermonEditor({ sermon, onSave, onLaunchPulpit, onBack }: SermonE
     saveSelection();
   };
 
-  // Speaker Cue
+  // Speaker Cue - Toggles on/off
   const applySpeakerCue = () => {
     if (!editorRef.current) return;
     editorRef.current.focus();
     restoreSelection();
 
     const selection = window.getSelection();
+    const parentEl = selection?.anchorNode?.parentElement;
+    const existingCue = parentEl?.closest('[data-block="cue"]') as HTMLElement | null;
+
+    if (existingCue && editorRef.current.contains(existingCue)) {
+      unwrapBlockToParagraph(existingCue);
+      updateWordCount();
+      saveSelection();
+      return;
+    }
+
     const text = selection && selection.toString() ? selection.toString() : 'Пауза 5 сек / Слайд 1';
 
     const cueHtml = `
@@ -602,13 +708,23 @@ export function SermonEditor({ sermon, onSave, onLaunchPulpit, onBack }: SermonE
     saveSelection();
   };
 
-  // Author Quote
+  // Author Quote - Toggles on/off
   const applyAuthorQuote = () => {
     if (!editorRef.current) return;
     editorRef.current.focus();
     restoreSelection();
 
     const selection = window.getSelection();
+    const parentEl = selection?.anchorNode?.parentElement;
+    const existingQuote = parentEl?.closest('[data-block="author-quote"]') as HTMLElement | null;
+
+    if (existingQuote && editorRef.current.contains(existingQuote)) {
+      unwrapBlockToParagraph(existingQuote);
+      updateWordCount();
+      saveSelection();
+      return;
+    }
+
     const text = selection && selection.toString() ? selection.toString() : '«Бог шепчет нам в наших удовольствиях...» — К.С. Льюис';
 
     const quoteHtml = `
@@ -621,18 +737,36 @@ export function SermonEditor({ sermon, onSave, onLaunchPulpit, onBack }: SermonE
       </div><p><br></p>
     `;
 
-    document.execCommand('insertHTML', false, quoteHtml);
+    const parentP = parentEl?.closest('p, h1, h2, h3, div');
+    if (parentP && parentP !== editorRef.current && parentP.textContent?.trim() === text.trim()) {
+      const tempDiv = document.createElement('div');
+      tempDiv.innerHTML = quoteHtml;
+      parentP.parentNode?.replaceChild(tempDiv.firstElementChild || tempDiv, parentP);
+    } else {
+      document.execCommand('insertHTML', false, quoteHtml);
+    }
+
     updateWordCount();
     saveSelection();
   };
 
-  // Story Block
+  // Story Block - Toggles on/off
   const applyStoryBlock = () => {
     if (!editorRef.current) return;
     editorRef.current.focus();
     restoreSelection();
 
     const selection = window.getSelection();
+    const parentEl = selection?.anchorNode?.parentElement;
+    const existingStory = parentEl?.closest('[data-block="story"]') as HTMLElement | null;
+
+    if (existingStory && editorRef.current.contains(existingStory)) {
+      unwrapBlockToParagraph(existingStory);
+      updateWordCount();
+      saveSelection();
+      return;
+    }
+
     const text = selection && selection.toString() ? selection.toString() : '«Напишите здесь пример или личную историю...»';
 
     const storyHtml = `
