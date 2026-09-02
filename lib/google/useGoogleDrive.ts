@@ -21,7 +21,7 @@ export function useGoogleDrive() {
 
   // Load client ID from env or localStorage
   useEffect(() => {
-    const envClientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || '';
+    const envClientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || '736137736866-gp99nankl7csfifn5nlsllolacjdpqgv.apps.googleusercontent.com';
     const storedClientId = typeof window !== 'undefined' ? localStorage.getItem('kerygma_google_client_id') || '' : '';
     const storedToken = typeof window !== 'undefined' ? localStorage.getItem('kerygma_google_access_token') : null;
     const storedEmail = typeof window !== 'undefined' ? localStorage.getItem('kerygma_google_user_email') : null;
