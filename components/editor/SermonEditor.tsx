@@ -13,21 +13,20 @@ import {
   Italic,
   List,
   ListOrdered,
-  Sparkles,
   Lightbulb,
   Undo2,
   Redo2,
   Megaphone,
   Quote,
   Pilcrow,
-  Compass,
-  Flag,
+  BookOpen,
   Sliders,
   RotateCcw,
   X,
   Settings2,
 } from 'lucide-react';
 import { Sermon } from '@/lib/types';
+import { cleanDocumentArtifacts } from '@/lib/utils/htmlDecoder';
 
 interface SermonEditorProps {
   sermon: Sermon;
@@ -38,7 +37,8 @@ interface SermonEditorProps {
 
 // Convert Markdown to visual Rich HTML for the editor
 function markdownToHtml(md: string): string {
-  const lines = md.split('\n');
+  const cleaned = cleanDocumentArtifacts(md);
+  const lines = cleaned.split('\n');
   let html = '';
   let i = 0;
 
@@ -54,38 +54,6 @@ function markdownToHtml(md: string): string {
     if (line.startsWith('# ')) {
       const text = line.replace(/^#\s+/, '').replace(/^[*_\s]+|[*_\s]+$/g, '').trim();
       html += `<h1 class="text-3xl sm:text-4xl font-black text-amber-400 border-b border-zinc-800 pb-3 pt-4 my-4 tracking-tight">${escapeHtml(text)}</h1>`;
-      i++;
-      continue;
-    }
-
-    // Intro Block (## 🧭 ...)
-    if (line.startsWith('## 🧭') || line.toLowerCase().startsWith('## введение') || line.toLowerCase().startsWith('## 1. введение')) {
-      const text = line.replace(/^##\s*(🧭|\d+\.)?\s*/i, '').replace(/^[*_\s]+|[*_\s]+$/g, '').trim();
-      html += `
-        <div class="my-5 p-5 rounded-2xl bg-gradient-to-r from-teal-950/40 via-emerald-950/30 to-zinc-900/40 border-l-4 border-emerald-400 border-y border-r border-emerald-500/20 text-emerald-100 shadow-md" data-block="intro">
-          <div class="text-emerald-400 font-bold text-xs uppercase tracking-wider flex items-center gap-1.5 mb-2 select-none" contenteditable="false">
-            <span>🧭</span>
-            <span>Введение / Старт</span>
-          </div>
-          <div class="text-2xl font-black text-emerald-200 tracking-tight intro-text">${escapeHtml(text || 'Введение')}</div>
-        </div><p><br></p>
-      `;
-      i++;
-      continue;
-    }
-
-    // Conclusion Block (## 🏁 ...)
-    if (line.startsWith('## 🏁') || line.toLowerCase().startsWith('## заключение') || line.toLowerCase().startsWith('## призыв')) {
-      const text = line.replace(/^##\s*(🏁)?\s*/i, '').replace(/^[*_\s]+|[*_\s]+$/g, '').trim();
-      html += `
-        <div class="my-5 p-5 rounded-2xl bg-gradient-to-r from-amber-950/40 via-orange-950/30 to-zinc-900/40 border-l-4 border-amber-400 border-y border-r border-amber-500/20 text-amber-100 shadow-md" data-block="conclusion">
-          <div class="text-amber-400 font-bold text-xs uppercase tracking-wider flex items-center gap-1.5 mb-2 select-none" contenteditable="false">
-            <span>🏁</span>
-            <span>Заключение / Призыв</span>
-          </div>
-          <div class="text-2xl font-black text-amber-200 tracking-tight conclusion-text">${escapeHtml(text || 'Заключение и призыв')}</div>
-        </div><p><br></p>
-      `;
       i++;
       continue;
     }
@@ -183,45 +151,37 @@ function markdownToHtml(md: string): string {
       continue;
     }
 
-    // Bullet list
-    if (line.startsWith('- ') || line.startsWith('• ')) {
+    // Unordered List (- ...)
+    if (line.startsWith('- ') || line.startsWith('* ')) {
       const listItems: string[] = [];
-      while (i < lines.length && (lines[i].trim().startsWith('- ') || lines[i].trim().startsWith('• '))) {
-        listItems.push(lines[i].trim().replace(/^[-•]\s*/, ''));
+      while (i < lines.length && (lines[i].trim().startsWith('- ') || lines[i].trim().startsWith('* '))) {
+        listItems.push(lines[i].trim().replace(/^[-*]\s+/, ''));
         i++;
       }
-      html += `<ul class="my-3 space-y-1.5 pl-6 list-disc list-outside text-zinc-200">`;
-      for (const item of listItems) {
-        html += `<li>${inlineMarkdownToHtml(item)}</li>`;
-      }
-      html += `</ul>`;
+      html += `<ul class="my-4 space-y-1.5 list-disc list-inside text-zinc-200">${listItems.map((item) => `<li>${inlineMarkdownToHtml(item)}</li>`).join('')}</ul>`;
       continue;
     }
 
-    // Numbered list
-    if (/^\d+\.\s/.test(line)) {
-      const numItems: string[] = [];
-      while (i < lines.length && /^\d+\.\s/.test(lines[i].trim())) {
-        numItems.push(lines[i].trim().replace(/^\d+\.\s*/, ''));
+    // Ordered List (1. ...)
+    if (/^\d+\.\s+/.test(line)) {
+      const listItems: string[] = [];
+      while (i < lines.length && /^\d+\.\s+/.test(lines[i].trim())) {
+        listItems.push(lines[i].trim().replace(/^\d+\.\s+/, ''));
         i++;
       }
-      html += `<ol class="my-3 space-y-1.5 pl-6 list-decimal list-outside text-zinc-200">`;
-      for (const item of numItems) {
-        html += `<li>${inlineMarkdownToHtml(item)}</li>`;
-      }
-      html += `</ol>`;
+      html += `<ol class="my-4 space-y-1.5 list-decimal list-inside text-zinc-200">${listItems.map((item) => `<li>${inlineMarkdownToHtml(item)}</li>`).join('')}</ol>`;
       continue;
     }
 
-    // Regular paragraph
+    // Regular Paragraph
     html += `<p class="my-3 leading-relaxed text-zinc-200 text-lg">${inlineMarkdownToHtml(line)}</p>`;
     i++;
   }
 
-  return html;
+  return html || '<p class="my-3 leading-relaxed text-zinc-200 text-lg"><br></p>';
 }
 
-// Convert Visual HTML back to clean Markdown
+// Convert HTML content back to clean Markdown
 function htmlToMarkdown(element: HTMLElement): string {
   let md = '';
 
@@ -251,18 +211,6 @@ function htmlToMarkdown(element: HTMLElement): string {
         const header = el.getAttribute('data-header') || el.querySelector('.scripture-title-text')?.textContent || 'Священное Писание';
         const bodyText = el.querySelector('.font-serif')?.textContent || el.textContent || '';
         return `\n\n> 📖 **${header.trim()}**\n> ${bodyText.trim()}\n\n`;
-      }
-
-      // Check for Intro Card
-      if (el.getAttribute('data-block') === 'intro') {
-        const text = el.querySelector('.intro-text')?.textContent || el.textContent?.replace('🧭 Введение / Старт', '') || 'Введение';
-        return `\n\n## 🧭 ${text.trim()}\n\n`;
-      }
-
-      // Check for Conclusion Card
-      if (el.getAttribute('data-block') === 'conclusion') {
-        const text = el.querySelector('.conclusion-text')?.textContent || el.textContent?.replace('🏁 Заключение / Призыв', '') || 'Заключение и призыв';
-        return `\n\n## 🏁 ${text.trim()}\n\n`;
       }
 
       // Check for Story Card
@@ -305,7 +253,8 @@ function htmlToMarkdown(element: HTMLElement): string {
   };
 
   md = Array.from(element.childNodes).map(processNode).join('');
-  return md.replace(/\n{3,}/g, '\n\n').trim();
+  const cleaned = cleanDocumentArtifacts(md);
+  return cleaned.replace(/\n{3,}/g, '\n\n').trim();
 }
 
 function escapeHtml(str: string): string {
@@ -317,7 +266,6 @@ function escapeHtml(str: string): string {
 }
 
 function inlineMarkdownToHtml(str: string): string {
-  // Normalize internal whitespace inside asterisks before replacing
   const normalized = str
     .replace(/\*\*\s*(.*?)\s*\*\*/g, '**$1**')
     .replace(/\*\s*(.*?)\s*\*/g, '*$1*');
@@ -335,12 +283,15 @@ export function SermonEditor({ sermon, onSave, onLaunchPulpit, onBack }: SermonE
   const [wordCount, setWordCount] = useState(0);
   const [hoveredTool, setHoveredTool] = useState<string | null>(null);
 
+  // Floating Selection Bubble State
+  const [bubblePos, setBubblePos] = useState<{ x: number; y: number } | null>(null);
+
   // Pacing customization state (Default: 115 WPM, 2.05x expansion)
   const [wpm, setWpm] = useState(115);
   const [expansionFactor, setExpansionFactor] = useState(2.05);
   const [isPacingModalOpen, setIsPacingModalOpen] = useState(false);
 
-  // Load user's saved pacing calibration from localStorage
+  // Load user's saved pacing calibration
   useEffect(() => {
     if (typeof window !== 'undefined') {
       const savedWpm = localStorage.getItem('kerygma_pacing_wpm');
@@ -357,10 +308,6 @@ export function SermonEditor({ sermon, onSave, onLaunchPulpit, onBack }: SermonE
       localStorage.setItem('kerygma_pacing_wpm', String(newWpm));
       localStorage.setItem('kerygma_pacing_expansion', String(newExp));
     }
-  };
-
-  const resetPacingToDefault = () => {
-    savePacingCalibration(115, 2.05);
   };
 
   const editorRef = useRef<HTMLDivElement | null>(null);
@@ -381,6 +328,36 @@ export function SermonEditor({ sermon, onSave, onLaunchPulpit, onBack }: SermonE
       sel.addRange(lastRangeRef.current);
     }
   };
+
+  // Monitor text selection for Floating Bubble Toolbar
+  useEffect(() => {
+    const handleSelectionChange = () => {
+      const sel = window.getSelection();
+      if (!sel || sel.isCollapsed || !editorRef.current) {
+        setBubblePos(null);
+        return;
+      }
+
+      if (sel.rangeCount > 0) {
+        const range = sel.getRangeAt(0);
+        if (editorRef.current.contains(range.commonAncestorContainer)) {
+          const rect = range.getBoundingClientRect();
+          if (rect.width > 0 && rect.height > 0) {
+            setBubblePos({
+              x: rect.left + rect.width / 2,
+              y: rect.top - 12,
+            });
+            lastRangeRef.current = range;
+            return;
+          }
+        }
+      }
+      setBubblePos(null);
+    };
+
+    document.addEventListener('selectionchange', handleSelectionChange);
+    return () => document.removeEventListener('selectionchange', handleSelectionChange);
+  }, []);
 
   // Initialize visual content from sermon markdown
   useEffect(() => {
@@ -414,7 +391,210 @@ export function SermonEditor({ sermon, onSave, onLaunchPulpit, onBack }: SermonE
     }
   }, [sermon, title, series, duration, onSave]);
 
-  // Undo / Redo handlers
+  // Find the top-level block element in the editor
+  const getSelectedBlockElement = (): HTMLElement | null => {
+    if (!editorRef.current) return null;
+    const sel = window.getSelection();
+    if (!sel || sel.rangeCount === 0) return null;
+
+    let node: Node | null = sel.anchorNode;
+    if (!node) return null;
+
+    if (node === editorRef.current) {
+      const firstChild = editorRef.current.firstElementChild as HTMLElement | null;
+      return firstChild || null;
+    }
+
+    while (node && node.parentElement && node.parentElement !== editorRef.current) {
+      node = node.parentElement;
+    }
+
+    if (node && node.parentElement === editorRef.current) {
+      if (node.nodeType === Node.TEXT_NODE) {
+        // Wrap orphan text node into paragraph
+        const p = document.createElement('p');
+        p.className = 'my-3 leading-relaxed text-zinc-200 text-lg';
+        p.textContent = node.textContent;
+        editorRef.current.replaceChild(p, node);
+        return p;
+      }
+      return node as HTMLElement;
+    }
+
+    return null;
+  };
+
+  // Helper to extract clean text from any block
+  const getCleanBlockText = (blockEl: HTMLElement): string => {
+    let text = '';
+    const blockType = blockEl.getAttribute('data-block');
+
+    if (blockType === 'scripture') {
+      text = blockEl.querySelector('.font-serif')?.textContent || blockEl.textContent || '';
+    } else if (blockType === 'author-quote') {
+      text = blockEl.querySelector('.font-serif')?.textContent || blockEl.textContent?.replace('Цитата', '') || '';
+    } else if (blockType === 'cue') {
+      text = blockEl.textContent?.replace('📢 Ремарка:', '').trim() || '';
+    } else if (blockType === 'story') {
+      text = blockEl.querySelector('.italic')?.textContent || blockEl.textContent || '';
+    } else {
+      text = blockEl.textContent || '';
+    }
+
+    return text.replace(/^[#*`_❝❞«»\s]+|[#*`_❝❞«»\s]+$/g, '').trim();
+  };
+
+  // ================= PARAGRAPH-LEVEL BLOCK FORMAT TRANSFORMER =================
+  const applyBlockFormat = (type: 'h1' | 'h2' | 'quote' | 'scripture' | 'cue' | 'story' | 'ul' | 'ol' | 'p') => {
+    if (!editorRef.current) return;
+    editorRef.current.focus();
+    restoreSelection();
+
+    const currentBlock = getSelectedBlockElement();
+    if (!currentBlock) return;
+
+    const rawText = getCleanBlockText(currentBlock);
+    const cleanText = rawText || 'Текст';
+
+    const currentTag = currentBlock.tagName.toLowerCase();
+    const currentBlockType = currentBlock.getAttribute('data-block');
+
+    // Toggle check: if already this type or 'p', revert to clean paragraph
+    const isAlreadyThisType =
+      (type === 'h1' && currentTag === 'h1') ||
+      (type === 'h2' && currentTag === 'h2') ||
+      (type === 'quote' && currentBlockType === 'author-quote') ||
+      (type === 'scripture' && currentBlockType === 'scripture') ||
+      (type === 'cue' && currentBlockType === 'cue') ||
+      (type === 'story' && currentBlockType === 'story') ||
+      (type === 'ul' && currentTag === 'ul') ||
+      (type === 'ol' && currentTag === 'ol') ||
+      type === 'p';
+
+    let newEl: HTMLElement;
+
+    if (isAlreadyThisType) {
+      // Revert to clean paragraph
+      newEl = document.createElement('p');
+      newEl.className = 'my-3 leading-relaxed text-zinc-200 text-lg';
+      newEl.textContent = cleanText;
+    } else if (type === 'h1') {
+      newEl = document.createElement('h1');
+      newEl.className = 'text-3xl sm:text-4xl font-black text-amber-400 border-b border-zinc-800 pb-3 pt-4 my-4 tracking-tight';
+      newEl.textContent = cleanText;
+    } else if (type === 'h2') {
+      newEl = document.createElement('h2');
+      newEl.className = 'text-2xl font-extrabold text-amber-300 border-l-4 border-amber-500 pl-4 my-5 tracking-tight';
+      newEl.textContent = cleanText;
+    } else if (type === 'quote') {
+      newEl = document.createElement('div');
+      newEl.className = 'my-4 p-5 rounded-2xl bg-zinc-900/60 border-l-4 border-indigo-400 text-zinc-200 shadow-sm';
+      newEl.setAttribute('data-block', 'author-quote');
+      newEl.innerHTML = `
+        <div class="text-indigo-400 font-bold text-xs uppercase tracking-wider flex items-center gap-1.5 mb-2 select-none" contenteditable="false">
+          <span>❝</span>
+          <span>Цитата</span>
+        </div>
+        <div class="font-serif text-lg leading-relaxed text-zinc-200">${escapeHtml(cleanText)}</div>
+      `;
+    } else if (type === 'scripture') {
+      newEl = document.createElement('div');
+      newEl.className = 'my-5 p-5 rounded-2xl bg-gradient-to-r from-amber-950/40 to-zinc-900/40 border-l-4 border-amber-400 border-y border-r border-amber-500/20 text-amber-100 shadow-lg';
+      newEl.setAttribute('data-block', 'scripture');
+      newEl.setAttribute('data-header', 'Священное Писание');
+      newEl.innerHTML = `
+        <div class="text-amber-400 font-bold text-sm tracking-wide flex items-center gap-2 mb-2 select-none" contenteditable="false">
+          <span>📖</span>
+          <span class="scripture-title-text">Священное Писание</span>
+        </div>
+        <div class="font-serif text-lg leading-relaxed text-amber-100/95 italic">${escapeHtml(cleanText)}</div>
+      `;
+    } else if (type === 'story') {
+      newEl = document.createElement('div');
+      newEl.className = 'my-4 p-5 rounded-2xl bg-zinc-900/50 border-l-4 border-zinc-600 text-zinc-300 shadow-sm';
+      newEl.setAttribute('data-block', 'story');
+      newEl.innerHTML = `
+        <div class="italic font-serif leading-relaxed">${escapeHtml(cleanText)}</div>
+      `;
+    } else if (type === 'cue') {
+      newEl = document.createElement('div');
+      newEl.className = 'my-3 inline-flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-cyan-950/40 border border-cyan-500/40 text-cyan-300 font-mono text-sm tracking-wide shadow-sm';
+      newEl.setAttribute('data-block', 'cue');
+      newEl.innerHTML = `
+        <span class="opacity-70">📢 Ремарка:</span>
+        <span>${escapeHtml(cleanText)}</span>
+      `;
+    } else if (type === 'ul') {
+      newEl = document.createElement('ul');
+      newEl.className = 'my-4 space-y-1.5 list-disc list-inside text-zinc-200';
+      newEl.innerHTML = `<li>${escapeHtml(cleanText)}</li>`;
+    } else if (type === 'ol') {
+      newEl = document.createElement('ol');
+      newEl.className = 'my-4 space-y-1.5 list-decimal list-inside text-zinc-200';
+      newEl.innerHTML = `<li>${escapeHtml(cleanText)}</li>`;
+    } else {
+      newEl = document.createElement('p');
+      newEl.className = 'my-3 leading-relaxed text-zinc-200 text-lg';
+      newEl.textContent = cleanText;
+    }
+
+    editorRef.current.replaceChild(newEl, currentBlock);
+
+    // Place caret at end of the new element
+    const sel = window.getSelection();
+    if (sel) {
+      const range = document.createRange();
+      range.selectNodeContents(newEl);
+      range.collapse(false);
+      sel.removeAllRanges();
+      sel.addRange(range);
+      lastRangeRef.current = range;
+    }
+
+    updateWordCount();
+    setBubblePos(null);
+  };
+
+  // ================= INLINE FORMATTERS =================
+  const applyBold = () => {
+    if (!editorRef.current) return;
+    editorRef.current.focus();
+    restoreSelection();
+    document.execCommand('bold', false);
+    updateWordCount();
+    saveSelection();
+    setBubblePos(null);
+  };
+
+  const applyItalic = () => {
+    if (!editorRef.current) return;
+    editorRef.current.focus();
+    restoreSelection();
+    document.execCommand('italic', false);
+    updateWordCount();
+    saveSelection();
+    setBubblePos(null);
+  };
+
+  const applyThesis = () => {
+    if (!editorRef.current) return;
+    editorRef.current.focus();
+    restoreSelection();
+
+    const sel = window.getSelection();
+    const text = sel && sel.toString() ? sel.toString().trim() : '';
+
+    if (text) {
+      const thesisHtml = `<strong class="text-amber-300 font-bold underline decoration-amber-500/40 decoration-2 underline-offset-4">${escapeHtml(text)}</strong>`;
+      document.execCommand('insertHTML', false, thesisHtml);
+    } else {
+      document.execCommand('bold', false);
+    }
+    updateWordCount();
+    saveSelection();
+    setBubblePos(null);
+  };
+
   const applyUndo = () => {
     if (!editorRef.current) return;
     editorRef.current.focus();
@@ -429,398 +609,73 @@ export function SermonEditor({ sermon, onSave, onLaunchPulpit, onBack }: SermonE
     updateWordCount();
   };
 
-  // Helper to unwrap any custom block/card back to a normal paragraph
-  const unwrapBlockToParagraph = (blockEl: HTMLElement) => {
-    let cleanText = '';
-    const blockType = blockEl.getAttribute('data-block');
+  // Keyboard Enter handler: prevent broken nested cards
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      const block = getSelectedBlockElement();
+      if (block && block.getAttribute('data-block')) {
+        e.preventDefault();
+        const p = document.createElement('p');
+        p.className = 'my-3 leading-relaxed text-zinc-200 text-lg';
+        p.innerHTML = '<br>';
+        block.after(p);
 
-    if (blockType === 'scripture') {
-      cleanText = blockEl.querySelector('.font-serif')?.textContent || blockEl.textContent || '';
-    } else if (blockType === 'author-quote') {
-      cleanText = blockEl.querySelector('.font-serif')?.textContent || blockEl.textContent?.replace('Цитата', '') || '';
-    } else if (blockType === 'intro') {
-      cleanText = blockEl.querySelector('.intro-text')?.textContent || blockEl.textContent?.replace('Введение / Старт', '') || '';
-    } else if (blockType === 'conclusion') {
-      cleanText = blockEl.querySelector('.conclusion-text')?.textContent || blockEl.textContent?.replace('Заключение / Призыв', '') || '';
-    } else if (blockType === 'cue') {
-      cleanText = blockEl.textContent?.replace('📢 Ремарка:', '').trim() || '';
-    } else if (blockType === 'story') {
-      cleanText = blockEl.querySelector('.font-serif')?.textContent || blockEl.textContent || '';
-    } else {
-      cleanText = blockEl.textContent || '';
-    }
-
-    cleanText = cleanText.replace(/^[#*`_❝❞«»\s]+|[#*`_❝❞«»\s]+$/g, '').trim();
-    if (!cleanText) cleanText = 'Текст';
-
-    const p = document.createElement('p');
-    p.className = 'my-3 leading-relaxed text-zinc-200 text-lg';
-    p.textContent = cleanText;
-
-    blockEl.parentNode?.replaceChild(p, blockEl);
-    return p;
-  };
-
-  // Clear format to regular paragraph (¶)
-  const applyNormalText = () => {
-    if (!editorRef.current) return;
-    editorRef.current.focus();
-    restoreSelection();
-
-    const selection = window.getSelection();
-    if (!selection || !selection.rangeCount) return;
-
-    const node = selection.anchorNode;
-    const parentEl = node?.nodeType === Node.ELEMENT_NODE ? (node as HTMLElement) : node?.parentElement;
-
-    // Find if inside a custom card or heading
-    const specialBlock = parentEl?.closest('[data-block], blockquote, h1, h2, h3, ul, ol, pre') as HTMLElement | null;
-
-    if (specialBlock && editorRef.current.contains(specialBlock)) {
-      unwrapBlockToParagraph(specialBlock);
-    } else {
-      document.execCommand('formatBlock', false, '<p>');
-      document.execCommand('removeFormat', false);
-    }
-
-    updateWordCount();
-    saveSelection();
-  };
-
-  // Introduction Block (🧭) - Toggles on/off
-  const applyIntroduction = () => {
-    if (!editorRef.current) return;
-    editorRef.current.focus();
-    restoreSelection();
-
-    const selection = window.getSelection();
-    const parentEl = selection?.anchorNode?.parentElement;
-    const existingIntro = parentEl?.closest('[data-block="intro"]') as HTMLElement | null;
-
-    // If already intro, unwrap to normal text
-    if (existingIntro && editorRef.current.contains(existingIntro)) {
-      unwrapBlockToParagraph(existingIntro);
-      updateWordCount();
-      saveSelection();
-      return;
-    }
-
-    let text = selection && selection.toString().trim() ? selection.toString().trim() : '';
-
-    if (!text) {
-      const currentBlockText = parentEl?.textContent?.trim() || '';
-      if (currentBlockText && currentBlockText !== 'Введение' && !currentBlockText.startsWith('🧭')) {
-        text = currentBlockText;
-      } else {
-        text = 'Введение';
+        const sel = window.getSelection();
+        if (sel) {
+          const range = document.createRange();
+          range.setStart(p, 0);
+          range.collapse(true);
+          sel.removeAllRanges();
+          sel.addRange(range);
+          lastRangeRef.current = range;
+        }
+        updateWordCount();
       }
     }
-
-    const cleanText = text.replace(/^[#\d.\s🧭]+/, '').trim() || 'Введение';
-
-    const introHtml = `
-      <div class="my-5 p-5 rounded-2xl bg-gradient-to-r from-teal-950/40 via-emerald-950/30 to-zinc-900/40 border-l-4 border-emerald-400 border-y border-r border-emerald-500/20 text-emerald-100 shadow-md" data-block="intro">
-        <div class="text-emerald-400 font-bold text-xs uppercase tracking-wider flex items-center gap-1.5 mb-2 select-none" contenteditable="false">
-          <span>🧭</span>
-          <span>Введение / Старт</span>
-        </div>
-        <div class="text-2xl font-black text-emerald-200 tracking-tight intro-text">${escapeHtml(cleanText)}</div>
-      </div><p><br></p>
-    `;
-
-    // Replace parent paragraph if whole paragraph was selected
-    const parentP = parentEl?.closest('p, h1, h2, h3, div');
-    if (parentP && parentP !== editorRef.current && parentP.textContent?.trim() === cleanText) {
-      const tempDiv = document.createElement('div');
-      tempDiv.innerHTML = introHtml;
-      parentP.parentNode?.replaceChild(tempDiv.firstElementChild || tempDiv, parentP);
-    } else {
-      document.execCommand('insertHTML', false, introHtml);
-    }
-
-    updateWordCount();
-    saveSelection();
   };
 
-  // Conclusion Block (🏁) - Toggles on/off
-  const applyConclusion = () => {
-    if (!editorRef.current) return;
-    editorRef.current.focus();
-    restoreSelection();
-
-    const selection = window.getSelection();
-    const parentEl = selection?.anchorNode?.parentElement;
-    const existingConclusion = parentEl?.closest('[data-block="conclusion"]') as HTMLElement | null;
-
-    // If already conclusion, unwrap to normal text
-    if (existingConclusion && editorRef.current.contains(existingConclusion)) {
-      unwrapBlockToParagraph(existingConclusion);
-      updateWordCount();
-      saveSelection();
-      return;
-    }
-
-    let text = selection && selection.toString().trim() ? selection.toString().trim() : '';
-
-    if (!text) {
-      const currentBlockText = parentEl?.textContent?.trim() || '';
-      if (currentBlockText && currentBlockText !== 'Заключение' && !currentBlockText.startsWith('🏁')) {
-        text = currentBlockText;
-      } else {
-        text = 'Заключение и призыв';
-      }
-    }
-
-    const cleanText = text.replace(/^[#\d.\s🏁]+/, '').trim() || 'Заключение и призыв';
-
-    const conclusionHtml = `
-      <div class="my-5 p-5 rounded-2xl bg-gradient-to-r from-amber-950/40 via-orange-950/30 to-zinc-900/40 border-l-4 border-amber-400 border-y border-r border-amber-500/20 text-amber-100 shadow-md" data-block="conclusion">
-        <div class="text-amber-400 font-bold text-xs uppercase tracking-wider flex items-center gap-1.5 mb-2 select-none" contenteditable="false">
-          <span>🏁</span>
-          <span>Заключение / Призыв</span>
-        </div>
-        <div class="text-2xl font-black text-amber-200 tracking-tight conclusion-text">${escapeHtml(cleanText)}</div>
-      </div><p><br></p>
-    `;
-
-    const parentP = parentEl?.closest('p, h1, h2, h3, div');
-    if (parentP && parentP !== editorRef.current && parentP.textContent?.trim() === cleanText) {
-      const tempDiv = document.createElement('div');
-      tempDiv.innerHTML = conclusionHtml;
-      parentP.parentNode?.replaceChild(tempDiv.firstElementChild || tempDiv, parentP);
-    } else {
-      document.execCommand('insertHTML', false, conclusionHtml);
-    }
-
-    updateWordCount();
-    saveSelection();
-  };
-
-  // Headings - Toggle to P if already heading
-  const applyH1 = () => {
-    if (!editorRef.current) return;
-    editorRef.current.focus();
-    restoreSelection();
-
-    const selection = window.getSelection();
-    if (!selection || !selection.rangeCount) return;
-
-    const existingH1 = selection.anchorNode?.parentElement?.closest('h1');
-    if (existingH1) {
-      document.execCommand('formatBlock', false, '<p>');
-    } else {
-      document.execCommand('formatBlock', false, '<h1>');
-      const h1 = selection.anchorNode?.parentElement?.closest('h1');
-      if (h1) {
-        h1.className = 'text-3xl sm:text-4xl font-black text-amber-400 border-b border-zinc-800 pb-3 pt-4 my-4 tracking-tight';
-      }
-    }
-    updateWordCount();
-    saveSelection();
-  };
-
-  const applyH2 = () => {
-    if (!editorRef.current) return;
-    editorRef.current.focus();
-    restoreSelection();
-
-    const selection = window.getSelection();
-    if (!selection || !selection.rangeCount) return;
-
-    const existingH2 = selection.anchorNode?.parentElement?.closest('h2');
-    if (existingH2) {
-      document.execCommand('formatBlock', false, '<p>');
-    } else {
-      document.execCommand('formatBlock', false, '<h2>');
-      const h2 = selection.anchorNode?.parentElement?.closest('h2');
-      if (h2) {
-        h2.className = 'text-2xl font-extrabold text-amber-300 border-l-4 border-amber-500 pl-4 my-5 tracking-tight';
-      }
-    }
-    updateWordCount();
-    saveSelection();
-  };
-
-  const applyBold = () => {
-    if (!editorRef.current) return;
-    editorRef.current.focus();
-    restoreSelection();
-    document.execCommand('bold', false);
-    updateWordCount();
-    saveSelection();
-  };
-
-  const applyItalic = () => {
-    if (!editorRef.current) return;
-    editorRef.current.focus();
-    restoreSelection();
-    document.execCommand('italic', false);
-    updateWordCount();
-    saveSelection();
-  };
-
-  const applyBulletList = () => {
-    if (!editorRef.current) return;
-    editorRef.current.focus();
-    restoreSelection();
-    document.execCommand('insertUnorderedList', false);
-    updateWordCount();
-    saveSelection();
-  };
-
-  const applyNumberedList = () => {
-    if (!editorRef.current) return;
-    editorRef.current.focus();
-    restoreSelection();
-    document.execCommand('insertOrderedList', false);
-    updateWordCount();
-    saveSelection();
-  };
-
-  // Speaker Cue - Toggles on/off
-  const applySpeakerCue = () => {
-    if (!editorRef.current) return;
-    editorRef.current.focus();
-    restoreSelection();
-
-    const selection = window.getSelection();
-    const parentEl = selection?.anchorNode?.parentElement;
-    const existingCue = parentEl?.closest('[data-block="cue"]') as HTMLElement | null;
-
-    if (existingCue && editorRef.current.contains(existingCue)) {
-      unwrapBlockToParagraph(existingCue);
-      updateWordCount();
-      saveSelection();
-      return;
-    }
-
-    const text = selection && selection.toString() ? selection.toString() : 'Пауза 5 сек / Слайд 1';
-
-    const cueHtml = `
-      <div class="my-3 inline-flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-cyan-950/40 border border-cyan-500/40 text-cyan-300 font-mono text-sm tracking-wide shadow-sm" data-block="cue">
-        <span class="opacity-70">📢 Ремарка:</span>
-        <span>${escapeHtml(text)}</span>
-      </div><p><br></p>
-    `;
-
-    document.execCommand('insertHTML', false, cueHtml);
-    updateWordCount();
-    saveSelection();
-  };
-
-  // Author Quote - Toggles on/off
-  const applyAuthorQuote = () => {
-    if (!editorRef.current) return;
-    editorRef.current.focus();
-    restoreSelection();
-
-    const selection = window.getSelection();
-    const parentEl = selection?.anchorNode?.parentElement;
-    const existingQuote = parentEl?.closest('[data-block="author-quote"]') as HTMLElement | null;
-
-    if (existingQuote && editorRef.current.contains(existingQuote)) {
-      unwrapBlockToParagraph(existingQuote);
-      updateWordCount();
-      saveSelection();
-      return;
-    }
-
-    const text = selection && selection.toString() ? selection.toString() : '«Бог шепчет нам в наших удовольствиях...» — К.С. Льюис';
-
-    const quoteHtml = `
-      <div class="my-4 p-5 rounded-2xl bg-zinc-900/60 border-l-4 border-indigo-400 text-zinc-200 shadow-sm" data-block="author-quote">
-        <div class="text-indigo-400 font-bold text-xs uppercase tracking-wider flex items-center gap-1.5 mb-2 select-none" contenteditable="false">
-          <span>❝</span>
-          <span>Цитата</span>
-        </div>
-        <div class="font-serif text-lg leading-relaxed text-zinc-200">${escapeHtml(text)}</div>
-      </div><p><br></p>
-    `;
-
-    const parentP = parentEl?.closest('p, h1, h2, h3, div');
-    if (parentP && parentP !== editorRef.current && parentP.textContent?.trim() === text.trim()) {
-      const tempDiv = document.createElement('div');
-      tempDiv.innerHTML = quoteHtml;
-      parentP.parentNode?.replaceChild(tempDiv.firstElementChild || tempDiv, parentP);
-    } else {
-      document.execCommand('insertHTML', false, quoteHtml);
-    }
-
-    updateWordCount();
-    saveSelection();
-  };
-
-  // Story Block - Toggles on/off
-  const applyStoryBlock = () => {
-    if (!editorRef.current) return;
-    editorRef.current.focus();
-    restoreSelection();
-
-    const selection = window.getSelection();
-    const parentEl = selection?.anchorNode?.parentElement;
-    const existingStory = parentEl?.closest('[data-block="story"]') as HTMLElement | null;
-
-    if (existingStory && editorRef.current.contains(existingStory)) {
-      unwrapBlockToParagraph(existingStory);
-      updateWordCount();
-      saveSelection();
-      return;
-    }
-
-    const text = selection && selection.toString() ? selection.toString() : '«Напишите здесь пример или личную историю...»';
-
-    const storyHtml = `
-      <div class="my-4 p-5 rounded-2xl bg-zinc-900/50 border-l-4 border-zinc-600 text-zinc-300 shadow-sm" data-block="story">
-        <div class="italic font-serif leading-relaxed">${escapeHtml(text)}</div>
-      </div><p><br></p>
-    `;
-
-    document.execCommand('insertHTML', false, storyHtml);
-    updateWordCount();
-    saveSelection();
-  };
-
-  // Thesis
-  const applyThesis = () => {
-    if (!editorRef.current) return;
-    editorRef.current.focus();
-    restoreSelection();
-
-    const selection = window.getSelection();
-    const text = selection && selection.toString() ? selection.toString() : 'Напишите ключевой тезис';
-
-    const thesisHtml = `<strong class="text-amber-300 font-black underline decoration-amber-500/40 decoration-2 underline-offset-4">Главная мысль: ${escapeHtml(text)}</strong> `;
-    document.execCommand('insertHTML', false, thesisHtml);
-    updateWordCount();
-    saveSelection();
-  };
-
-  // Calculations based on customized or default WPM and expansion factor
+  // Pacing calculations
   const readingMinutes = Math.max(1, Math.round(wordCount / wpm));
-  const livePreachMinutes = Math.max(1, Math.round((wordCount * expansionFactor) / wpm));
-  const diffMinutes = livePreachMinutes - duration;
+  const livePreachMinutes = Math.max(1, Math.round(readingMinutes * expansionFactor));
+  const diffMinutes = duration - livePreachMinutes;
 
   return (
-    <div className="flex flex-col min-h-screen bg-[#09090b] text-zinc-100 select-text relative">
-      {/* Top Header Bar */}
-      <header className="sticky top-0 z-30 border-b border-zinc-800/80 bg-zinc-950/80 backdrop-blur-xl px-4 sm:px-8 py-3.5 flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <button
-            onClick={() => {
-              handleSave();
-              if (onBack) onBack();
-              else window.location.href = '/';
-            }}
-            className="p-2 rounded-xl text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800/60 transition-all flex items-center gap-1 text-xs font-semibold"
-            title="Вернуться к списку проповедей"
-          >
-            <ArrowLeft className="w-4 h-4" />
-            <span className="hidden sm:inline">Все проповеди</span>
-          </button>
+    <div className="min-h-screen bg-black text-zinc-100 flex flex-col select-none">
+      {/* Top Sticky Header */}
+      <header className="border-b border-zinc-800 bg-zinc-950/90 backdrop-blur-md sticky top-0 z-20">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 py-3.5 flex flex-wrap items-center justify-between gap-3">
+          {/* Back & Title */}
+          <div className="flex items-center gap-3">
+            {onBack && (
+              <button
+                onClick={onBack}
+                className="p-2 rounded-xl bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800 transition-colors"
+                title="Назад к списку"
+              >
+                <ArrowLeft className="w-4 h-4" />
+              </button>
+            )}
+            <div>
+              <input
+                type="text"
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                className="text-lg sm:text-xl font-bold bg-transparent text-zinc-100 focus:outline-none border-b border-transparent hover:border-zinc-700 focus:border-amber-400 transition-colors tracking-tight max-w-[240px] sm:max-w-md"
+                placeholder="Название проповеди..."
+              />
+              <div className="flex items-center gap-2 mt-0.5">
+                <input
+                  type="text"
+                  value={series}
+                  onChange={(e) => setSeries(e.target.value)}
+                  placeholder="Серия / Тема (опционально)"
+                  className="text-xs text-zinc-500 bg-transparent focus:outline-none border-b border-transparent hover:border-zinc-800 focus:border-zinc-600 transition-colors"
+                />
+              </div>
+            </div>
+          </div>
 
-          <div className="h-4 w-px bg-zinc-800 hidden sm:block" />
-
-          {/* Dual-Timing Statistics with Quick Calibration Click */}
+          {/* Word Count & Live Pacing Badge */}
           <div
             onClick={() => setIsPacingModalOpen(true)}
             className="hidden md:flex items-center gap-2.5 text-xs font-medium cursor-pointer p-1.5 rounded-xl hover:bg-zinc-900/90 transition-all group"
@@ -828,123 +683,193 @@ export function SermonEditor({ sermon, onSave, onLaunchPulpit, onBack }: SermonE
           >
             <span className="text-zinc-300 font-bold">{wordCount} слов</span>
             <span className="opacity-30">•</span>
-            <span className="text-zinc-400">
-              📖 ~{readingMinutes} мин чтения
-            </span>
+            <span className="text-zinc-400">📖 ~{readingMinutes} мин чтения</span>
             <span className="opacity-30">•</span>
             <span className="text-amber-300 font-bold bg-amber-500/10 group-hover:bg-amber-500/20 px-2 py-0.5 rounded-lg border border-amber-500/20 flex items-center gap-1">
               <span>🎙 ~{livePreachMinutes} мин речи</span>
               <Settings2 className="w-3 h-3 opacity-60 group-hover:opacity-100 ml-0.5" />
             </span>
           </div>
-        </div>
 
-        {/* Action Controls */}
-        <div className="flex items-center gap-2 sm:gap-3">
-          {/* Target Duration Selector */}
-          <div className={`flex items-center gap-1.5 bg-zinc-900/80 px-3 py-1.5 rounded-xl border text-xs transition-colors ${
-            Math.abs(diffMinutes) <= 4
-              ? 'border-emerald-500/40'
-              : diffMinutes > 5
-              ? 'border-amber-500/40'
-              : 'border-zinc-800'
-          }`}>
-            <Clock className="w-3.5 h-3.5 text-zinc-400" />
-            <span className="text-zinc-400 hidden sm:inline">Регламент:</span>
-            <select
-              value={duration}
-              onChange={(e) => setDuration(Number(e.target.value))}
-              className="bg-transparent text-amber-400 font-bold focus:outline-none cursor-pointer"
+          {/* Action Controls */}
+          <div className="flex items-center gap-2 sm:gap-3">
+            {/* Target Duration Selector */}
+            <div className={`flex items-center gap-1.5 bg-zinc-900/80 px-3 py-1.5 rounded-xl border text-xs transition-colors ${
+              Math.abs(diffMinutes) <= 4
+                ? 'border-emerald-500/40'
+                : diffMinutes > 5
+                ? 'border-amber-500/40'
+                : 'border-zinc-800'
+            }`}>
+              <Clock className="w-3.5 h-3.5 text-zinc-400" />
+              <span className="text-zinc-400 hidden sm:inline">Регламент:</span>
+              <select
+                value={duration}
+                onChange={(e) => setDuration(Number(e.target.value))}
+                className="bg-transparent text-amber-400 font-bold focus:outline-none cursor-pointer"
+              >
+                <option value={15} className="bg-zinc-900">15 мин</option>
+                <option value={20} className="bg-zinc-900">20 мин</option>
+                <option value={25} className="bg-zinc-900">25 мин</option>
+                <option value={30} className="bg-zinc-900">30 мин</option>
+                <option value={35} className="bg-zinc-900">35 мин</option>
+                <option value={40} className="bg-zinc-900">40 мин</option>
+                <option value={45} className="bg-zinc-900">45 мин</option>
+                <option value={60} className="bg-zinc-900">60 мин</option>
+              </select>
+            </div>
+
+            {/* Save Button */}
+            <button
+              onClick={handleSave}
+              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-all shadow-md ${
+                saved
+                  ? 'bg-emerald-500 text-black shadow-emerald-500/20'
+                  : 'bg-zinc-900 hover:bg-zinc-800 text-zinc-200 border border-zinc-700'
+              }`}
             >
-              <option value={15} className="bg-zinc-900">15 мин</option>
-              <option value={20} className="bg-zinc-900">20 мин</option>
-              <option value={25} className="bg-zinc-900">25 мин</option>
-              <option value={30} className="bg-zinc-900">30 мин</option>
-              <option value={35} className="bg-zinc-900">35 мин</option>
-              <option value={40} className="bg-zinc-900">40 мин</option>
-              <option value={45} className="bg-zinc-900">45 мин</option>
-              <option value={60} className="bg-zinc-900">60 мин</option>
-            </select>
+              {saved ? <Check className="w-4 h-4" /> : <Save className="w-4 h-4" />}
+              <span>{saved ? 'Сохранено' : 'Сохранить'}</span>
+            </button>
+
+            {/* Launch Pulpit Teleprompter Button */}
+            <button
+              onClick={() => {
+                handleSave();
+                onLaunchPulpit();
+              }}
+              className="flex items-center gap-2 px-4 py-2 rounded-xl bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 text-black text-sm font-bold shadow-lg shadow-amber-500/25 transition-all active:scale-95"
+            >
+              <Play className="w-4 h-4 fill-current" />
+              <span>На кафедру</span>
+            </button>
           </div>
-
-          <button
-            onClick={handleSave}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-zinc-900 hover:bg-zinc-800 text-zinc-200 border border-zinc-800 transition-all"
-            title="Сохранить изменения"
-          >
-            {saved ? <Check className="w-4 h-4 text-emerald-400" /> : <Save className="w-4 h-4" />}
-            <span className="hidden sm:inline">{saved ? 'Сохранено' : 'Сохранить'}</span>
-          </button>
-
-          <button
-            onClick={() => {
-              handleSave();
-              onLaunchPulpit();
-            }}
-            className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs sm:text-sm font-bold bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-black shadow-lg shadow-amber-500/20 transition-all active:scale-95"
-          >
-            <Play className="w-4 h-4 fill-current" />
-            <span>На кафедру</span>
-          </button>
         </div>
       </header>
 
-      {/* Vertical Right Floating Toolbar */}
-      <aside className="fixed right-3 sm:right-6 top-1/2 -translate-y-1/2 z-30 select-none">
-        <div className="flex flex-col items-center gap-1.5 p-2 rounded-2xl bg-zinc-950/90 border border-zinc-800/80 backdrop-blur-xl shadow-2xl">
-          {/* Undo / Redo */}
-          <button
-            onMouseDown={(e) => {
-              e.preventDefault();
-              applyUndo();
-            }}
-            onMouseEnter={() => setHoveredTool('Отменить (Ctrl+Z)')}
-            onMouseLeave={() => setHoveredTool(null)}
-            className="p-2.5 rounded-xl text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800 transition-all active:scale-90"
-            title="Отменить"
+      {/* Main Workspace Layout */}
+      <div className="flex-1 flex justify-center px-4 sm:px-6 py-6 sm:py-8 max-w-5xl mx-auto w-full relative">
+        {/* Floating Context Bubble on Text Selection */}
+        {bubblePos && (
+          <div
+            className="fixed z-50 -translate-x-1/2 -translate-y-full flex items-center gap-1 p-1.5 rounded-2xl bg-zinc-900/95 border border-zinc-700 shadow-2xl backdrop-blur-md animate-in fade-in zoom-in duration-150"
+            style={{ left: `${bubblePos.x}px`, top: `${bubblePos.y}px` }}
           >
-            <Undo2 className="w-4 h-4" />
-          </button>
+            <button
+              onMouseDown={(e) => {
+                e.preventDefault();
+                applyBold();
+              }}
+              className="p-2 rounded-xl hover:bg-zinc-800 text-zinc-200 font-bold transition-colors"
+              title="Жирный шрифт (B)"
+            >
+              <Bold className="w-4 h-4" />
+            </button>
+            <button
+              onMouseDown={(e) => {
+                e.preventDefault();
+                applyItalic();
+              }}
+              className="p-2 rounded-xl hover:bg-zinc-800 text-zinc-200 italic transition-colors"
+              title="Курсив (I)"
+            >
+              <Italic className="w-4 h-4" />
+            </button>
+            <button
+              onMouseDown={(e) => {
+                e.preventDefault();
+                applyThesis();
+              }}
+              className="p-2 rounded-xl hover:bg-amber-500/20 text-amber-300 font-bold transition-colors flex items-center gap-1 text-xs"
+              title="Главный тезис"
+            >
+              <Lightbulb className="w-4 h-4" />
+            </button>
+            <div className="w-px h-5 bg-zinc-700 mx-0.5" />
+            <button
+              onMouseDown={(e) => {
+                e.preventDefault();
+                applyBlockFormat('quote');
+              }}
+              className="p-2 rounded-xl hover:bg-indigo-500/20 text-indigo-300 transition-colors"
+              title="Цитата"
+            >
+              <Quote className="w-4 h-4" />
+            </button>
+            <button
+              onMouseDown={(e) => {
+                e.preventDefault();
+                applyBlockFormat('scripture');
+              }}
+              className="p-2 rounded-xl hover:bg-amber-500/20 text-amber-300 transition-colors"
+              title="Писание"
+            >
+              <BookOpen className="w-4 h-4" />
+            </button>
+            <button
+              onMouseDown={(e) => {
+                e.preventDefault();
+                applyBlockFormat('p');
+              }}
+              className="p-2 rounded-xl hover:bg-zinc-800 text-zinc-400 hover:text-zinc-200 transition-colors"
+              title="Обычный текст"
+            >
+              <Pilcrow className="w-4 h-4" />
+            </button>
+          </div>
+        )}
 
+        {/* The Sermon Document Sheet */}
+        <div className="w-full max-w-3xl pb-40">
+          <div
+            ref={editorRef}
+            contentEditable
+            suppressContentEditableWarning
+            onInput={updateWordCount}
+            onBlur={saveSelection}
+            onMouseUp={saveSelection}
+            onKeyUp={saveSelection}
+            onKeyDown={handleKeyDown}
+            className="w-full min-h-[75vh] p-6 sm:p-10 rounded-3xl bg-zinc-950/70 border border-zinc-800/80 text-zinc-100 shadow-2xl focus:outline-none focus:border-zinc-700 leading-relaxed font-sans text-lg tracking-normal cursor-text selection:bg-amber-500/30 select-text"
+            data-placeholder="Начните писать текст проповеди..."
+          />
+        </div>
+
+        {/* Floating Right Semantic Toolbar */}
+        <aside className="fixed right-4 sm:right-8 top-28 z-30 flex flex-col items-center gap-1.5 p-2 rounded-2xl bg-zinc-950/90 border border-zinc-800 backdrop-blur-md shadow-2xl">
+          {/* Tooltip Pill */}
+          {hoveredTool && (
+            <div className="absolute right-full mr-3 top-1/2 -translate-y-1/2 px-3 py-1.5 rounded-xl bg-zinc-900 border border-zinc-700 text-xs font-semibold text-amber-300 whitespace-nowrap shadow-xl pointer-events-none animate-in fade-in duration-150">
+              {hoveredTool}
+            </div>
+          )}
+
+          {/* Normal Paragraph / Clear Format */}
           <button
             onMouseDown={(e) => {
               e.preventDefault();
-              applyRedo();
+              applyBlockFormat('p');
             }}
-            onMouseEnter={() => setHoveredTool('Повторить (Ctrl+Y)')}
+            onMouseEnter={() => setHoveredTool('Обычный текст (¶)')}
             onMouseLeave={() => setHoveredTool(null)}
-            className="p-2.5 rounded-xl text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800 transition-all active:scale-90"
-            title="Повторить"
-          >
-            <Redo2 className="w-4 h-4" />
-          </button>
-
-          <div className="w-6 h-px bg-zinc-800 my-0.5" />
-
-          {/* Normal Text */}
-          <button
-            onMouseDown={(e) => {
-              e.preventDefault();
-              applyNormalText();
-            }}
-            onMouseEnter={() => setHoveredTool('Обычный текст (Сбросить стиль)')}
-            onMouseLeave={() => setHoveredTool(null)}
-            className="p-2.5 rounded-xl text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800 transition-all active:scale-90"
+            className="p-2.5 rounded-xl text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800/80 transition-all active:scale-90"
             title="Обычный текст"
           >
             <Pilcrow className="w-4 h-4" />
           </button>
 
+          <div className="w-6 h-px bg-zinc-800 my-0.5" />
+
           {/* Headings */}
           <button
             onMouseDown={(e) => {
               e.preventDefault();
-              applyH1();
+              applyBlockFormat('h1');
             }}
             onMouseEnter={() => setHoveredTool('Главный заголовок (H1)')}
             onMouseLeave={() => setHoveredTool(null)}
             className="p-2.5 rounded-xl text-amber-400 hover:bg-amber-500/10 transition-all active:scale-90 font-bold text-xs"
-            title="Заголовок H1"
+            title="Главный заголовок H1"
           >
             <Heading1 className="w-4 h-4" />
           </button>
@@ -952,7 +877,7 @@ export function SermonEditor({ sermon, onSave, onLaunchPulpit, onBack }: SermonE
           <button
             onMouseDown={(e) => {
               e.preventDefault();
-              applyH2();
+              applyBlockFormat('h2');
             }}
             onMouseEnter={() => setHoveredTool('Раздел плана (H2)')}
             onMouseLeave={() => setHoveredTool(null)}
@@ -968,7 +893,7 @@ export function SermonEditor({ sermon, onSave, onLaunchPulpit, onBack }: SermonE
           <button
             onMouseDown={(e) => {
               e.preventDefault();
-              applyAuthorQuote();
+              applyBlockFormat('quote');
             }}
             onMouseEnter={() => setHoveredTool('Цитата автора')}
             onMouseLeave={() => setHoveredTool(null)}
@@ -981,12 +906,25 @@ export function SermonEditor({ sermon, onSave, onLaunchPulpit, onBack }: SermonE
           <button
             onMouseDown={(e) => {
               e.preventDefault();
-              applySpeakerCue();
+              applyBlockFormat('scripture');
             }}
-            onMouseEnter={() => setHoveredTool('Ремарка спикеру (пауза, слайд)')}
+            onMouseEnter={() => setHoveredTool('Цитата Писания')}
+            onMouseLeave={() => setHoveredTool(null)}
+            className="p-2.5 rounded-xl text-amber-400 hover:bg-amber-500/10 transition-all active:scale-90"
+            title="Священное Писание"
+          >
+            <BookOpen className="w-4 h-4" />
+          </button>
+
+          <button
+            onMouseDown={(e) => {
+              e.preventDefault();
+              applyBlockFormat('cue');
+            }}
+            onMouseEnter={() => setHoveredTool('Ремарка спикеру (Пауза/Слайд)')}
             onMouseLeave={() => setHoveredTool(null)}
             className="p-2.5 rounded-xl text-cyan-400 hover:bg-cyan-500/10 transition-all active:scale-90"
-            title="Ремарка спикеру"
+            title="Ремарка"
           >
             <Megaphone className="w-4 h-4" />
           </button>
@@ -994,24 +932,11 @@ export function SermonEditor({ sermon, onSave, onLaunchPulpit, onBack }: SermonE
           <button
             onMouseDown={(e) => {
               e.preventDefault();
-              applyStoryBlock();
-            }}
-            onMouseEnter={() => setHoveredTool('История / Пример')}
-            onMouseLeave={() => setHoveredTool(null)}
-            className="p-2.5 rounded-xl text-zinc-300 hover:text-zinc-100 hover:bg-zinc-800 transition-all active:scale-90"
-            title="История"
-          >
-            <Sparkles className="w-4 h-4 text-zinc-400" />
-          </button>
-
-          <button
-            onMouseDown={(e) => {
-              e.preventDefault();
               applyThesis();
             }}
-            onMouseEnter={() => setHoveredTool('Главный тезис')}
+            onMouseEnter={() => setHoveredTool('Главный тезис / Мысль')}
             onMouseLeave={() => setHoveredTool(null)}
-            className="p-2.5 rounded-xl text-amber-400 hover:bg-amber-500/10 transition-all active:scale-90"
+            className="p-2.5 rounded-xl text-amber-300 hover:bg-amber-500/10 transition-all active:scale-90"
             title="Главный тезис"
           >
             <Lightbulb className="w-4 h-4" />
@@ -1019,15 +944,15 @@ export function SermonEditor({ sermon, onSave, onLaunchPulpit, onBack }: SermonE
 
           <div className="w-6 h-px bg-zinc-800 my-0.5" />
 
-          {/* Basic Text Formatting */}
+          {/* Inline Styles */}
           <button
             onMouseDown={(e) => {
               e.preventDefault();
               applyBold();
             }}
-            onMouseEnter={() => setHoveredTool('Жирный шрифт')}
+            onMouseEnter={() => setHoveredTool('Жирный (Ctrl/Cmd+B)')}
             onMouseLeave={() => setHoveredTool(null)}
-            className="p-2.5 rounded-xl text-zinc-300 hover:text-zinc-100 hover:bg-zinc-800 transition-all active:scale-90 font-bold"
+            className="p-2.5 rounded-xl text-zinc-300 hover:text-zinc-100 hover:bg-zinc-800/80 transition-all active:scale-90"
             title="Жирный"
           >
             <Bold className="w-4 h-4" />
@@ -1038,23 +963,26 @@ export function SermonEditor({ sermon, onSave, onLaunchPulpit, onBack }: SermonE
               e.preventDefault();
               applyItalic();
             }}
-            onMouseEnter={() => setHoveredTool('Курсив')}
+            onMouseEnter={() => setHoveredTool('Курсив (Ctrl/Cmd+I)')}
             onMouseLeave={() => setHoveredTool(null)}
-            className="p-2.5 rounded-xl text-zinc-300 hover:text-zinc-100 hover:bg-zinc-800 transition-all active:scale-90 italic"
+            className="p-2.5 rounded-xl text-zinc-300 hover:text-zinc-100 hover:bg-zinc-800/80 transition-all active:scale-90"
             title="Курсив"
           >
             <Italic className="w-4 h-4" />
           </button>
 
+          <div className="w-6 h-px bg-zinc-800 my-0.5" />
+
+          {/* Lists */}
           <button
             onMouseDown={(e) => {
               e.preventDefault();
-              applyBulletList();
+              applyBlockFormat('ul');
             }}
-            onMouseEnter={() => setHoveredTool('Маркерный список (•)')}
+            onMouseEnter={() => setHoveredTool('Маркированный список')}
             onMouseLeave={() => setHoveredTool(null)}
-            className="p-2.5 rounded-xl text-zinc-300 hover:text-zinc-100 hover:bg-zinc-800 transition-all active:scale-90"
-            title="Маркерный список"
+            className="p-2.5 rounded-xl text-zinc-300 hover:text-zinc-100 hover:bg-zinc-800/80 transition-all active:scale-90"
+            title="Маркированный список"
           >
             <List className="w-4 h-4" />
           </button>
@@ -1062,147 +990,129 @@ export function SermonEditor({ sermon, onSave, onLaunchPulpit, onBack }: SermonE
           <button
             onMouseDown={(e) => {
               e.preventDefault();
-              applyNumberedList();
+              applyBlockFormat('ol');
             }}
-            onMouseEnter={() => setHoveredTool('Нумерованный список (1, 2, 3...)')}
+            onMouseEnter={() => setHoveredTool('Нумерованный список')}
             onMouseLeave={() => setHoveredTool(null)}
-            className="p-2.5 rounded-xl text-zinc-300 hover:text-zinc-100 hover:bg-zinc-800 transition-all active:scale-90"
+            className="p-2.5 rounded-xl text-zinc-300 hover:text-zinc-100 hover:bg-zinc-800/80 transition-all active:scale-90"
             title="Нумерованный список"
           >
             <ListOrdered className="w-4 h-4" />
           </button>
-        </div>
 
-        {/* Hovered Tooltip */}
-        {hoveredTool && (
-          <div className="absolute right-full mr-3 top-1/2 -translate-y-1/2 px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap bg-zinc-900/95 text-zinc-100 border border-zinc-800 shadow-2xl animate-in fade-in duration-100 pointer-events-none">
-            {hoveredTool}
-          </div>
-        )}
-      </aside>
+          <div className="w-6 h-px bg-zinc-800 my-0.5" />
 
-      {/* Main Centered Visual WYSIWYG Document */}
-      <main className="flex-1 max-w-3xl w-full mx-auto px-6 sm:px-12 py-8 flex flex-col space-y-6 pr-16 sm:pr-20">
-        {/* Title Input */}
-        <input
-          type="text"
-          value={title}
-          onChange={(e) => setTitle(e.target.value)}
-          placeholder="Название проповеди..."
-          className="w-full bg-transparent text-3xl sm:text-4xl lg:text-5xl font-black text-zinc-100 placeholder-zinc-700 focus:outline-none border-b border-zinc-800/40 pb-4 leading-tight tracking-tight"
-        />
+          {/* Undo / Redo */}
+          <button
+            onMouseDown={(e) => {
+              e.preventDefault();
+              applyUndo();
+            }}
+            onMouseEnter={() => setHoveredTool('Отменить (Cmd+Z)')}
+            onMouseLeave={() => setHoveredTool(null)}
+            className="p-2.5 rounded-xl text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800/80 transition-all active:scale-90"
+            title="Отменить"
+          >
+            <Undo2 className="w-4 h-4" />
+          </button>
 
-        {/* Series Input (Optional) */}
-        <input
-          type="text"
-          value={series}
-          onChange={(e) => setSeries(e.target.value)}
-          placeholder="Серия проповедей (например: «Вера в действии»)"
-          className="w-full bg-transparent text-sm text-zinc-400 placeholder-zinc-700 focus:outline-none -mt-2"
-        />
-
-        {/* Visual ContentEditable Document (WYSIWYG) */}
-        <div
-          ref={editorRef}
-          contentEditable
-          suppressContentEditableWarning
-          onInput={updateWordCount}
-          onBlur={handleSave}
-          onKeyUp={saveSelection}
-          onMouseUp={saveSelection}
-          className="w-full flex-1 focus:outline-none min-h-[65vh] pb-32 text-zinc-200"
-          style={{ lineHeight: 1.85 }}
-        />
-      </main>
+          <button
+            onMouseDown={(e) => {
+              e.preventDefault();
+              applyRedo();
+            }}
+            onMouseEnter={() => setHoveredTool('Повторить (Cmd+Shift+Z)')}
+            onMouseLeave={() => setHoveredTool(null)}
+            className="p-2.5 rounded-xl text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800/80 transition-all active:scale-90"
+            title="Повторить"
+          >
+            <Redo2 className="w-4 h-4" />
+          </button>
+        </aside>
+      </div>
 
       {/* Pacing Calibration Modal */}
       {isPacingModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-in fade-in duration-150">
-          <div
-            className="w-full max-w-md bg-zinc-900 border border-zinc-800 rounded-3xl p-6 shadow-2xl space-y-6 text-zinc-100"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-center justify-between border-b border-zinc-800 pb-3">
-              <div className="flex items-center gap-2 text-amber-400 font-bold">
-                <Sliders className="w-5 h-5" />
-                <span>Калибровка темпа и формулы</span>
-              </div>
-              <button
-                onClick={() => setIsPacingModalOpen(false)}
-                className="p-1.5 rounded-xl text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="w-full max-w-lg rounded-3xl bg-zinc-950 border border-zinc-800 p-6 sm:p-7 shadow-2xl relative">
+            <button
+              onClick={() => setIsPacingModalOpen(false)}
+              className="absolute right-5 top-5 p-2 rounded-xl text-zinc-400 hover:text-zinc-100 hover:bg-zinc-900 transition-colors"
+            >
+              <X className="w-5 h-5" />
+            </button>
 
-            {/* Speaking Rate WPM */}
-            <div className="space-y-2">
-              <div className="flex items-center justify-between text-xs font-semibold">
-                <span className="text-zinc-300">Базовый темп речи (слов/мин):</span>
-                <span className="text-amber-400 font-mono font-bold text-sm">{wpm} сл/мин</span>
+            <div className="flex items-center gap-3 mb-5">
+              <div className="p-3 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-amber-400">
+                <Sliders className="w-6 h-6" />
               </div>
-              <input
-                type="range"
-                min={85}
-                max={165}
-                step={5}
-                value={wpm}
-                onChange={(e) => savePacingCalibration(Number(e.target.value), expansionFactor)}
-                className="w-full accent-amber-500 cursor-pointer"
-              />
-              <div className="flex justify-between text-[10px] text-zinc-500 font-mono">
-                <span>90 (Размеренный)</span>
-                <span className="text-amber-400/80">115 (Стандарт)</span>
-                <span>150 (Быстрый)</span>
+              <div>
+                <h3 className="text-lg font-bold text-zinc-100">Калибровка хронометража речи</h3>
+                <p className="text-xs text-zinc-400">Настройте темп чтения и сценический коэффициент</p>
               </div>
             </div>
 
-            {/* Expansion Factor */}
-            <div className="space-y-2">
-              <div className="flex items-center justify-between text-xs font-semibold">
-                <span className="text-zinc-300">Коэффициент живой речи:</span>
-                <span className="text-amber-400 font-mono font-bold text-sm">{expansionFactor.toFixed(2)}x</span>
+            <div className="space-y-6">
+              {/* WPM Slider */}
+              <div className="p-4 rounded-2xl bg-zinc-900/60 border border-zinc-800/80">
+                <div className="flex justify-between items-center mb-2">
+                  <span className="text-xs font-semibold text-zinc-300">Базовая скорость чтения текста</span>
+                  <span className="text-sm font-mono font-bold text-amber-400">{wpm} слов / мин</span>
+                </div>
+                <input
+                  type="range"
+                  min={80}
+                  max={170}
+                  step={5}
+                  value={wpm}
+                  onChange={(e) => savePacingCalibration(Number(e.target.value), expansionFactor)}
+                  className="w-full accent-amber-500 cursor-pointer"
+                />
+                <div className="flex justify-between text-[10px] text-zinc-500 mt-1">
+                  <span>80 (Размеренно)</span>
+                  <span>115 (Стандарт пастора)</span>
+                  <span>170 (Быстро)</span>
+                </div>
               </div>
-              <input
-                type="range"
-                min={1.0}
-                max={3.0}
-                step={0.05}
-                value={expansionFactor}
-                onChange={(e) => savePacingCalibration(wpm, Number(e.target.value))}
-                className="w-full accent-amber-500 cursor-pointer"
-              />
-              <div className="flex justify-between text-[10px] text-zinc-500 font-mono">
-                <span>1.0x (Чтение текста)</span>
-                <span className="text-amber-400/80">2.05x (Проповедь)</span>
-                <span>3.0x (Импровизация)</span>
+
+              {/* Expansion Factor Slider */}
+              <div className="p-4 rounded-2xl bg-zinc-900/60 border border-zinc-800/80">
+                <div className="flex justify-between items-center mb-2">
+                  <span className="text-xs font-semibold text-zinc-300">Коэффициент сценического раскрытия</span>
+                  <span className="text-sm font-mono font-bold text-amber-400">{expansionFactor.toFixed(2)}x</span>
+                </div>
+                <input
+                  type="range"
+                  min={1.0}
+                  max={3.0}
+                  step={0.05}
+                  value={expansionFactor}
+                  onChange={(e) => savePacingCalibration(wpm, Number(e.target.value))}
+                  className="w-full accent-amber-500 cursor-pointer"
+                />
+                <div className="flex justify-between text-[10px] text-zinc-500 mt-1">
+                  <span>1.0x (Чтение слово в слово)</span>
+                  <span>2.05x (Живая проповедь)</span>
+                  <span>3.0x (Свободный конспект)</span>
+                </div>
               </div>
-            </div>
 
-            {/* Resulting Formula Summary */}
-            <div className="p-3.5 rounded-2xl bg-zinc-950/80 border border-zinc-800/80 text-xs space-y-1.5 text-zinc-400">
-              <div className="font-semibold text-zinc-200">Текущий расчет для вашего конспекта:</div>
-              <div>• {wordCount} слов $\to$ 📖 ~{readingMinutes} мин чистого чтения</div>
-              <div>• {wordCount} слов $\to$ 🎙 <strong className="text-amber-300">~{livePreachMinutes} мин живой проповеди</strong></div>
-            </div>
-
-            {/* Buttons */}
-            <div className="flex items-center justify-between pt-2 border-t border-zinc-800">
-              <button
-                onClick={resetPacingToDefault}
-                className="flex items-center gap-1.5 text-xs text-zinc-400 hover:text-zinc-200 p-2 rounded-xl hover:bg-zinc-800/60 transition-all"
-                title="Сбросить к 115 сл/мин и 2.05x"
-              >
-                <RotateCcw className="w-3.5 h-3.5" />
-                <span>По умолчанию (115, 2.05x)</span>
-              </button>
-
-              <button
-                onClick={() => setIsPacingModalOpen(false)}
-                className="px-4 py-2 rounded-xl text-xs font-bold bg-amber-500 hover:bg-amber-400 text-black shadow-md transition-all"
-              >
-                Применить
-              </button>
+              {/* Reset to Defaults */}
+              <div className="flex items-center justify-between pt-2">
+                <button
+                  onClick={() => savePacingCalibration(115, 2.05)}
+                  className="flex items-center gap-1.5 text-xs text-zinc-400 hover:text-amber-400 transition-colors"
+                >
+                  <RotateCcw className="w-3.5 h-3.5" />
+                  <span>Сбросить к стандарту (115 сл/мин, 2.05x)</span>
+                </button>
+                <button
+                  onClick={() => setIsPacingModalOpen(false)}
+                  className="px-5 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-black font-bold text-xs transition-colors"
+                >
+                  Готово
+                </button>
+              </div>
             </div>
           </div>
         </div>
