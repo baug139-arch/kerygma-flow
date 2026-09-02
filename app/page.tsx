@@ -169,7 +169,7 @@ export default function DashboardPage() {
 
   if (isEditing && selectedSermon) {
     return (
-      <div className="w-screen h-screen flex flex-col">
+      <div className="w-full min-h-screen flex flex-col">
         <SermonEditor
           sermon={selectedSermon}
           onSave={handleUpdateSermon}
