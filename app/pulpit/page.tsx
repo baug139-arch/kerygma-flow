@@ -206,8 +206,20 @@ function PulpitContent() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [autoscroll, timer, isVerseModalOpen, isOutlineOpen, router]);
 
+  const getRootBg = () => {
+    switch (theme) {
+      case 'sepia':
+        return 'bg-[#fbf0d9] text-[#433422]';
+      case 'light':
+        return 'bg-white text-zinc-900';
+      case 'oled':
+      default:
+        return 'bg-black text-zinc-100';
+    }
+  };
+
   return (
-    <div className="relative w-screen h-screen overflow-hidden select-none bg-black">
+    <div className={`relative w-screen h-screen overflow-hidden select-none transition-colors duration-200 ${getRootBg()}`}>
       {/* 1. Ultra-Compact Minimalist Floating Stage Timer Capsule (Top-Left Option A) */}
       <StageTimer
         status={timer.status}
