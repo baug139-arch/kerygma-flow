@@ -41,6 +41,17 @@ function PulpitContent() {
           console.error(e);
         }
       }
+      const rawList = localStorage.getItem('kerygma_sermons') || localStorage.getItem('kerygma_sermons_list');
+      if (rawList) {
+        try {
+          const list = JSON.parse(rawList);
+          const foundInList = list.find((s: Sermon) => s.id === sermonId);
+          if (foundInList) {
+            setSermon(foundInList);
+            return;
+          }
+        } catch {}
+      }
       const found = SAMPLE_SERMONS.find((s) => s.id === sermonId) || SAMPLE_SERMONS[0];
       setSermon(found);
     }

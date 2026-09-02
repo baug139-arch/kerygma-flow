@@ -20,34 +20,53 @@ import { Sermon } from '@/lib/types';
 import { SermonEditor } from '@/components/editor/SermonEditor';
 import { GoogleDriveModal } from '@/components/editor/GoogleDriveModal';
 import { parseBibleReferences } from '@/lib/bible/parser';
+import {
+  getLocalSermons,
+  saveLocalSermons,
+  saveSermonToCloudAndLocal,
+  deleteSermonFromCloudAndLocal,
+  subscribeToCloudSermons,
+} from '@/lib/firebase/sermonSync';
+import { auth } from '@/lib/firebase/config';
+import { onAuthStateChanged } from 'firebase/auth';
 
 export default function DashboardPage() {
   const router = useRouter();
-  const [sermons, setSermons] = useState<Sermon[]>(SAMPLE_SERMONS);
+  const [sermons, setSermons] = useState<Sermon[]>(() => {
+    const local = getLocalSermons();
+    return local.length > 0 ? local : SAMPLE_SERMONS;
+  });
   const [selectedSermon, setSelectedSermon] = useState<Sermon | null>(null);
   const [isEditing, setIsEditing] = useState(false);
   const [isDriveModalOpen, setIsDriveModalOpen] = useState(false);
 
-  // Load from local storage
+  // Load from local storage and subscribe to Cloud Firestore when logged in
   useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const savedList = localStorage.getItem('kerygma_sermons_list');
-      if (savedList) {
-        try {
-          setSermons(JSON.parse(savedList));
-        } catch (e) {
-          console.error(e);
-        }
-      }
+    const local = getLocalSermons();
+    if (local.length > 0) {
+      setSermons(local);
+    } else {
+      saveLocalSermons(SAMPLE_SERMONS);
+      setSermons(SAMPLE_SERMONS);
     }
-  }, []);
 
-  const saveSermonsList = (list: Sermon[]) => {
-    setSermons(list);
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('kerygma_sermons_list', JSON.stringify(list));
-    }
-  };
+    let unsubscribeFirestore: () => void = () => {};
+
+    const unsubscribeAuth = onAuthStateChanged(auth, (user) => {
+      if (user) {
+        unsubscribeFirestore = subscribeToCloudSermons(user.uid, (cloudSermons) => {
+          if (cloudSermons.length > 0) {
+            setSermons(cloudSermons);
+          }
+        });
+      }
+    });
+
+    return () => {
+      unsubscribeAuth();
+      unsubscribeFirestore();
+    };
+  }, []);
 
   const handleCreateNew = () => {
     const newSermon: Sermon = {
@@ -59,15 +78,15 @@ export default function DashboardPage() {
       updatedAt: new Date().toISOString(),
       content: `# Новая проповедь\n\n## 1. Введение\nНачните ваш конспект здесь...\n\n*«Здесь можно записать личную историю или пример из жизни...»*\n\nПрочитаем ключевой стих: [Ин 3:16]\n\n**Главный тезис: Напишите ключевую мысль вашей темы.**\n\n## 2. Основная часть\n- Первый пункт плана\n- Второй пункт с цитатой [Рим 8:28]\n\n## 3. Заключение и призыв\nПомолимся вместе.`,
     };
-    const updated = [newSermon, ...sermons];
-    saveSermonsList(updated);
+    saveSermonToCloudAndLocal(newSermon);
+    setSermons((prev) => [newSermon, ...prev.filter((s) => s.id !== newSermon.id)]);
     setSelectedSermon(newSermon);
     setIsEditing(true);
   };
 
   const handleUpdateSermon = (updated: Sermon) => {
-    const nextList = sermons.map((s) => (s.id === updated.id ? updated : s));
-    saveSermonsList(nextList);
+    saveSermonToCloudAndLocal(updated);
+    setSermons((prev) => prev.map((s) => (s.id === updated.id ? updated : s)));
     setSelectedSermon(updated);
     if (typeof window !== 'undefined') {
       localStorage.setItem(`kerygma_sermon_${updated.id}`, JSON.stringify(updated));
@@ -76,8 +95,8 @@ export default function DashboardPage() {
 
   const handleDeleteSermon = (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    const nextList = sermons.filter((s) => s.id !== id);
-    saveSermonsList(nextList);
+    deleteSermonFromCloudAndLocal(id);
+    setSermons((prev) => prev.filter((s) => s.id !== id));
     if (selectedSermon?.id === id) {
       setSelectedSermon(null);
       setIsEditing(false);
@@ -96,8 +115,8 @@ export default function DashboardPage() {
       syncedFromGoogle: true,
       googleDocId: imported.googleDocId,
     };
-    const updated = [newSermon, ...sermons];
-    saveSermonsList(updated);
+    saveSermonToCloudAndLocal(newSermon);
+    setSermons((prev) => [newSermon, ...prev.filter((s) => s.id !== newSermon.id)]);
     setSelectedSermon(newSermon);
     setIsEditing(true);
   };
