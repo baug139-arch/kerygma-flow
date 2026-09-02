@@ -75,10 +75,10 @@ export function StageTimer({
   const light = getLightStyles();
 
   return (
-    <div className="fixed top-9 sm:top-11 left-5 sm:left-8 z-30 flex flex-col items-start select-none">
+    <div className="fixed top-8 sm:top-10 left-3 sm:left-4 z-30 flex flex-col items-start select-none">
       {/* Main Mini Floating Pill */}
       <div
-        className={`group flex items-center gap-2.5 px-3.5 py-2 rounded-full border backdrop-blur-md transition-all duration-300 shadow-lg cursor-pointer ${
+        className={`group flex items-center gap-2 px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-full border backdrop-blur-md transition-all duration-300 shadow-lg cursor-pointer ${
           light.pill
         } ${isExpanded ? 'opacity-100 shadow-2xl' : 'opacity-60 hover:opacity-100'}`}
         onClick={() => setIsExpanded(!isExpanded)}

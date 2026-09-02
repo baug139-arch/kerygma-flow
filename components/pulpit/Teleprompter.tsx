@@ -312,7 +312,7 @@ export function Teleprompter({
   return (
     <div
       ref={containerRef}
-      className={`w-full h-full overflow-y-auto px-6 sm:px-16 lg:px-28 pt-24 sm:pt-28 pb-96 select-text transition-colors duration-200 ${themeStyles.bg}`}
+      className={`w-full h-full overflow-y-auto pl-24 sm:pl-32 lg:pl-40 pr-6 sm:pr-16 lg:pr-28 pt-24 sm:pt-28 pb-96 select-text transition-colors duration-200 ${themeStyles.bg}`}
       style={{
         fontSize: `${fontSize}px`,
         lineHeight: 1.8,
