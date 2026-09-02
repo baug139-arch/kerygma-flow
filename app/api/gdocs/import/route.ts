@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { convertGoogleDocHtmlToMarkdown } from '@/lib/utils/htmlDecoder';
 
 function extractGoogleDocId(urlOrId: string): string | null {
   const trimmed = urlOrId.trim();
@@ -83,40 +84,4 @@ export async function POST(req: NextRequest) {
       { status: 500 }
     );
   }
-}
-
-function convertGoogleDocHtmlToMarkdown(html: string): string {
-  let body = html;
-  const bodyMatch = html.match(/<body[^>]*>([\s\S]*?)<\/body>/i);
-  if (bodyMatch) {
-    body = bodyMatch[1];
-  }
-
-  body = body.replace(/<h1[^>]*>([\s\S]*?)<\/h1>/gi, '\n\n# $1\n\n');
-  body = body.replace(/<h2[^>]*>([\s\S]*?)<\/h2>/gi, '\n\n## $1\n\n');
-  body = body.replace(/<h3[^>]*>([\s\S]*?)<\/h3>/gi, '\n\n### $1\n\n');
-  body = body.replace(/<h4[^>]*>([\s\S]*?)<\/h4>/gi, '\n\n### $1\n\n');
-
-  body = body.replace(/<p[^>]*>([\s\S]*?)<\/p>/gi, '\n\n$1\n\n');
-
-  body = body.replace(/<strong[^>]*>([\s\S]*?)<\/strong>/gi, '**$1**');
-  body = body.replace(/<b[^>]*>([\s\S]*?)<\/b>/gi, '**$1**');
-  body = body.replace(/<em[^>]*>([\s\S]*?)<\/em>/gi, '*$1*');
-  body = body.replace(/<i[^>]*>([\s\S]*?)<\/i>/gi, '*$1*');
-
-  body = body.replace(/<li[^>]*>([\s\S]*?)<\/li>/gi, '- $1\n');
-
-  body = body.replace(/<[^>]+>/g, '');
-
-  body = body
-    .replace(/&nbsp;/g, ' ')
-    .replace(/&amp;/g, '&')
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;/g, "'");
-
-  body = body.replace(/\n{3,}/g, '\n\n').trim();
-
-  return body;
 }
