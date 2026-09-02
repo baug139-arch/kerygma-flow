@@ -408,25 +408,8 @@ export function Teleprompter({
 
             case 'author-quote':
               return (
-                <div key={idx} className={themeStyles.authorQuote}>
-                  <div className="text-xs font-bold uppercase tracking-wider text-indigo-400 flex items-center gap-1.5 mb-2">
-                    <Quote className="w-4 h-4" />
-                    <span>Цитата</span>
-                  </div>
-                  <div className="font-serif text-lg leading-relaxed">
-                    {renderInlineFormatted(block.content, themeStyles)}
-                  </div>
-                </div>
-              );
-
-            case 'scripture':
-              return (
-                <div key={idx} className={themeStyles.scriptureCard}>
-                  <div className={themeStyles.scriptureHeader}>
-                    <BookOpen className="w-5 h-5 text-amber-500 shrink-0" />
-                    <span>{block.header || 'Священное Писание'}</span>
-                  </div>
-                  <div className={themeStyles.scriptureText}>
+                <div key={idx} className="my-5 p-5 sm:p-6 rounded-2xl bg-zinc-900/60 border-l-4 border-indigo-400 text-zinc-200 shadow-sm">
+                  <div className="font-serif text-lg sm:text-xl italic leading-relaxed text-zinc-200">
                     {renderInlineFormatted(block.content, themeStyles)}
                   </div>
                 </div>
@@ -434,11 +417,7 @@ export function Teleprompter({
 
             case 'illustration':
               return (
-                <div key={idx} className="my-6 p-6 rounded-2xl bg-gradient-to-r from-purple-950/40 via-zinc-900/40 to-zinc-950/40 border-l-4 border-purple-400 border-y border-r border-purple-500/20 shadow-lg">
-                  <div className="text-purple-400 font-bold text-xs uppercase tracking-wider flex items-center gap-2 mb-2 select-none">
-                    <Sparkles className="w-4 h-4 text-purple-400 shrink-0" />
-                    <span>Иллюстрация / Пример</span>
-                  </div>
+                <div key={idx} className="my-5 p-5 sm:p-6 rounded-2xl bg-purple-950/25 border-l-4 border-purple-400 border-y border-r border-purple-500/20 text-purple-100 shadow-md">
                   <div className="font-sans text-lg sm:text-xl leading-relaxed text-zinc-100">
                     {renderInlineFormatted(block.content, themeStyles)}
                   </div>

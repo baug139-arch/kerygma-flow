@@ -88,12 +88,9 @@ function markdownToHtml(md: string): string {
 
     // Speaker Cue: [📢 ...] or [⏸ ...]
     if (line.startsWith('[📢') || line.startsWith('[⏸') || (line.startsWith('[') && line.includes('📢') && line.endsWith(']'))) {
-      const cueText = line.replace(/^\[|\]$/g, '');
+      const cueText = line.replace(/^\[|\]$/g, '').replace('📢', '').trim();
       html += `
-        <div class="my-3 inline-flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-cyan-950/40 border border-cyan-500/40 text-cyan-300 font-mono text-sm tracking-wide shadow-sm" data-block="cue">
-          <span class="opacity-70">📢 Ремарка:</span>
-          <span>${escapeHtml(cueText.replace('📢', '').trim())}</span>
-        </div><p><br></p>
+        <div class="my-3 inline-flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-cyan-950/40 border border-cyan-500/40 text-cyan-300 font-mono text-sm tracking-wide shadow-sm" data-block="cue">${escapeHtml(cueText)}</div><p><br></p>
       `;
       i++;
       continue;
@@ -103,13 +100,7 @@ function markdownToHtml(md: string): string {
     if (line.startsWith('[💡 Иллюстрация:') || line.startsWith('[Иллюстрация:') || line.startsWith('[💡 Пример:')) {
       const text = line.replace(/^\[(💡\s*)?(Иллюстрация|Пример):\s*/i, '').replace(/\]$/g, '').trim();
       html += `
-        <div class="my-5 p-5 rounded-2xl bg-gradient-to-r from-purple-950/40 via-zinc-900/40 to-zinc-950/40 border-l-4 border-purple-400 border-y border-r border-purple-500/20 text-purple-100 shadow-md" data-block="illustration">
-          <div class="text-purple-400 font-bold text-xs uppercase tracking-wider flex items-center gap-1.5 mb-2 select-none" contenteditable="false">
-            <span>💡</span>
-            <span>Иллюстрация / Пример</span>
-          </div>
-          <div class="font-sans text-lg leading-relaxed text-zinc-200">${inlineMarkdownToHtml(text)}</div>
-        </div>
+        <div class="my-5 p-5 sm:p-6 rounded-2xl bg-purple-950/25 border-l-4 border-purple-400 border-y border-r border-purple-500/20 text-purple-100 shadow-md font-sans text-lg leading-relaxed" data-block="illustration">${inlineMarkdownToHtml(text)}</div>
       `;
       i++;
       continue;
@@ -117,14 +108,9 @@ function markdownToHtml(md: string): string {
 
     // Author Quote Block (❝ ... ❞)
     if (line.startsWith('❝') || (line.startsWith('«') && line.includes('—'))) {
+      const text = line.replace(/^[❝«\s]+|[❞»\s]+$/g, '').trim();
       html += `
-        <div class="my-4 p-5 rounded-2xl bg-zinc-900/60 border-l-4 border-indigo-400 text-zinc-200 shadow-sm" data-block="author-quote">
-          <div class="text-indigo-400 font-bold text-xs uppercase tracking-wider flex items-center gap-1.5 mb-2 select-none" contenteditable="false">
-            <span>❝</span>
-            <span>Цитата</span>
-          </div>
-          <div class="font-serif text-lg leading-relaxed text-zinc-200">${inlineMarkdownToHtml(line)}</div>
-        </div>
+        <div class="my-4 p-5 rounded-2xl bg-zinc-900/60 border-l-4 border-indigo-400 text-zinc-200 shadow-sm font-serif text-lg leading-relaxed italic" data-block="author-quote">❝${inlineMarkdownToHtml(text)}❞</div>
       `;
       i++;
       continue;
@@ -221,18 +207,11 @@ function htmlToMarkdown(element: HTMLElement): string {
 
       // Check for Author Quote
       if (el.getAttribute('data-block') === 'author-quote') {
-        const text = el.querySelector('.font-serif')?.textContent || el.textContent || '';
-        return `\n\n❝${text.trim()}❞\n\n`;
+        const text = el.textContent?.trim() || '';
+        return `\n\n❝${text.replace(/^[❝«\s]+|[❞»\s]+$/g, '')}❞\n\n`;
       }
 
-      // Check for Scripture Card
-      if (el.getAttribute('data-block') === 'scripture') {
-        const header = el.getAttribute('data-header') || el.querySelector('.scripture-title-text')?.textContent || 'Священное Писание';
-        const bodyText = el.querySelector('.font-serif')?.textContent || el.textContent || '';
-        return `\n\n> 📖 **${header.trim()}**\n> ${bodyText.trim()}\n\n`;
-      }
-
-      // Check for Story Card
+      // Check for Story Card (Scripture text)
       if (el.getAttribute('data-block') === 'story') {
         const text = el.textContent?.trim() || '';
         return `\n\n*«${text.replace(/[*«»]/g, '')}»*\n\n`;
@@ -240,8 +219,8 @@ function htmlToMarkdown(element: HTMLElement): string {
 
       // Check for Illustration Card
       if (el.getAttribute('data-block') === 'illustration') {
-        const text = el.querySelector('.font-sans')?.textContent || el.textContent?.replace('Иллюстрация / Пример', '') || '';
-        return `\n\n[💡 Иллюстрация: ${text.trim()}]\n\n`;
+        const text = el.textContent?.trim() || '';
+        return `\n\n[💡 Иллюстрация: ${text.replace(/^\[(💡\s*)?(Иллюстрация|Пример):\s*/i, '').replace(/\]$/g, '').trim()}]\n\n`;
       }
 
       switch (tag) {
@@ -451,26 +430,12 @@ export function SermonEditor({ sermon, onSave, onLaunchPulpit, onBack }: SermonE
 
   // Helper to extract clean text from any block
   const getCleanBlockText = (blockEl: HTMLElement): string => {
-    let text = '';
-    const blockType = blockEl.getAttribute('data-block');
-
-    if (blockType === 'scripture') {
-      text = blockEl.querySelector('.font-serif')?.textContent || blockEl.textContent || '';
-    } else if (blockType === 'author-quote') {
-      text = blockEl.querySelector('.font-serif')?.textContent || blockEl.textContent?.replace('Цитата', '') || '';
-    } else if (blockType === 'cue') {
-      text = blockEl.textContent?.replace('📢 Ремарка:', '').trim() || '';
-    } else if (blockType === 'story') {
-      text = blockEl.querySelector('.italic')?.textContent || blockEl.textContent || '';
-    } else {
-      text = blockEl.textContent || '';
-    }
-
+    let text = blockEl.textContent || '';
     return text.replace(/^[#*`_❝❞«»\s]+|[#*`_❝❞«»\s]+$/g, '').trim();
   };
 
   // ================= PARAGRAPH-LEVEL BLOCK FORMAT TRANSFORMER =================
-  const applyBlockFormat = (type: 'h1' | 'h2' | 'h3' | 'quote' | 'scripture' | 'story' | 'illustration' | 'cue' | 'ul' | 'ol' | 'p') => {
+  const applyBlockFormat = (type: 'h1' | 'h2' | 'h3' | 'quote' | 'story' | 'illustration' | 'cue' | 'ul' | 'ol' | 'p') => {
     if (!editorRef.current) return;
     editorRef.current.focus();
     restoreSelection();
@@ -490,7 +455,6 @@ export function SermonEditor({ sermon, onSave, onLaunchPulpit, onBack }: SermonE
       (type === 'h2' && currentTag === 'h2') ||
       (type === 'h3' && currentTag === 'h3') ||
       (type === 'quote' && currentBlockType === 'author-quote') ||
-      (type === 'scripture' && currentBlockType === 'scripture') ||
       (type === 'story' && currentBlockType === 'story') ||
       (type === 'illustration' && currentBlockType === 'illustration') ||
       (type === 'cue' && currentBlockType === 'cue') ||
@@ -519,45 +483,19 @@ export function SermonEditor({ sermon, onSave, onLaunchPulpit, onBack }: SermonE
       newEl.textContent = cleanText;
     } else if (type === 'quote') {
       newEl = document.createElement('div');
-      newEl.className = 'my-4 p-5 rounded-2xl bg-zinc-900/60 border-l-4 border-indigo-400 text-zinc-200 shadow-sm';
+      newEl.className = 'my-4 p-5 rounded-2xl bg-zinc-900/60 border-l-4 border-indigo-400 text-zinc-200 shadow-sm font-serif text-lg leading-relaxed italic';
       newEl.setAttribute('data-block', 'author-quote');
-      newEl.innerHTML = `
-        <div class="text-indigo-400 font-bold text-xs uppercase tracking-wider flex items-center gap-1.5 mb-2 select-none" contenteditable="false">
-          <span>❝</span>
-          <span>Цитата</span>
-        </div>
-        <div class="font-serif text-lg leading-relaxed text-zinc-200">${escapeHtml(cleanText)}</div>
-      `;
+      newEl.textContent = `❝${cleanText}❞`;
     } else if (type === 'illustration') {
       newEl = document.createElement('div');
-      newEl.className = 'my-5 p-5 rounded-2xl bg-gradient-to-r from-purple-950/40 via-zinc-900/40 to-zinc-950/40 border-l-4 border-purple-400 border-y border-r border-purple-500/20 text-purple-100 shadow-md';
+      newEl.className = 'my-5 p-5 sm:p-6 rounded-2xl bg-purple-950/25 border-l-4 border-purple-400 border-y border-r border-purple-500/20 text-purple-100 shadow-md font-sans text-lg leading-relaxed';
       newEl.setAttribute('data-block', 'illustration');
-      newEl.innerHTML = `
-        <div class="text-purple-400 font-bold text-xs uppercase tracking-wider flex items-center gap-1.5 mb-2 select-none" contenteditable="false">
-          <span>💡</span>
-          <span>Иллюстрация / Пример</span>
-        </div>
-        <div class="font-sans text-lg leading-relaxed text-zinc-200">${escapeHtml(cleanText)}</div>
-      `;
-    } else if (type === 'scripture') {
-      newEl = document.createElement('div');
-      newEl.className = 'my-5 p-5 rounded-2xl bg-gradient-to-r from-amber-950/40 to-zinc-900/40 border-l-4 border-amber-400 border-y border-r border-amber-500/20 text-amber-100 shadow-lg';
-      newEl.setAttribute('data-block', 'scripture');
-      newEl.setAttribute('data-header', 'Священное Писание');
-      newEl.innerHTML = `
-        <div class="text-amber-400 font-bold text-sm tracking-wide flex items-center gap-2 mb-2 select-none" contenteditable="false">
-          <span>📖</span>
-          <span class="scripture-title-text">Священное Писание</span>
-        </div>
-        <div class="font-serif text-lg leading-relaxed text-amber-100/95 italic">${escapeHtml(cleanText)}</div>
-      `;
+      newEl.textContent = cleanText;
     } else if (type === 'story') {
       newEl = document.createElement('div');
-      newEl.className = 'my-5 p-5 sm:p-6 rounded-2xl bg-zinc-900/60 border border-zinc-800 text-zinc-200 shadow-md';
+      newEl.className = 'my-5 p-5 sm:p-6 rounded-2xl bg-zinc-900/60 border border-zinc-800 text-zinc-200 shadow-md font-serif italic text-lg sm:text-xl leading-relaxed';
       newEl.setAttribute('data-block', 'story');
-      newEl.innerHTML = `
-        <div class="italic font-serif text-lg sm:text-xl leading-relaxed text-zinc-200">«${escapeHtml(cleanText.replace(/^[«"]+|[»"]+$/g, ''))}»</div>
-      `;
+      newEl.textContent = `«${cleanText.replace(/^[«"]+|[»"]+$/g, '')}»`;
     } else if (type === 'cue') {
       newEl = document.createElement('div');
       newEl.className = 'my-3 inline-flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-cyan-950/40 border border-cyan-500/40 text-cyan-300 font-mono text-sm tracking-wide shadow-sm';
@@ -851,20 +789,10 @@ export function SermonEditor({ sermon, onSave, onLaunchPulpit, onBack }: SermonE
             <button
               onMouseDown={(e) => {
                 e.preventDefault();
-                applyBlockFormat('scripture');
-              }}
-              className="p-2 rounded-xl hover:bg-amber-500/20 text-amber-300 transition-colors"
-              title="Писание (с заголовком)"
-            >
-              <BookOpen className="w-4 h-4" />
-            </button>
-            <button
-              onMouseDown={(e) => {
-                e.preventDefault();
                 applyBlockFormat('illustration');
               }}
               className="p-2 rounded-xl hover:bg-purple-500/20 text-purple-300 transition-colors"
-              title="Иллюстрация / Пример"
+              title="Иллюстрация"
             >
               <Sparkles className="w-4 h-4" />
             </button>
@@ -983,10 +911,10 @@ export function SermonEditor({ sermon, onSave, onLaunchPulpit, onBack }: SermonE
               e.preventDefault();
               applyBlockFormat('story');
             }}
-            onMouseEnter={() => setHoveredTool('Текст Писания / Отрывок (темная карточка)')}
+            onMouseEnter={() => setHoveredTool('Текст Писания (темная карточка с курсивом)')}
             onMouseLeave={() => setHoveredTool(null)}
             className="p-2.5 rounded-xl text-zinc-300 hover:text-amber-300 hover:bg-zinc-800/80 transition-all active:scale-90"
-            title="Текст Писания (темная карточка)"
+            title="Текст Писания"
           >
             <ScrollText className="w-4 h-4" />
           </button>
@@ -994,25 +922,12 @@ export function SermonEditor({ sermon, onSave, onLaunchPulpit, onBack }: SermonE
           <button
             onMouseDown={(e) => {
               e.preventDefault();
-              applyBlockFormat('scripture');
-            }}
-            onMouseEnter={() => setHoveredTool('Цитата Писания (с заголовком)')}
-            onMouseLeave={() => setHoveredTool(null)}
-            className="p-2.5 rounded-xl text-amber-400 hover:bg-amber-500/10 transition-all active:scale-90"
-            title="Священное Писание"
-          >
-            <BookOpen className="w-4 h-4" />
-          </button>
-
-          <button
-            onMouseDown={(e) => {
-              e.preventDefault();
               applyBlockFormat('illustration');
             }}
-            onMouseEnter={() => setHoveredTool('Иллюстрация / Пример')}
+            onMouseEnter={() => setHoveredTool('Иллюстрация')}
             onMouseLeave={() => setHoveredTool(null)}
             className="p-2.5 rounded-xl text-purple-400 hover:bg-purple-500/10 transition-all active:scale-90"
-            title="Иллюстрация / Пример"
+            title="Иллюстрация"
           >
             <Sparkles className="w-4 h-4" />
           </button>
