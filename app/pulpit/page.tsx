@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useRef, useMemo, useCallback, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { FileText } from 'lucide-react';
 import { Teleprompter } from '@/components/pulpit/Teleprompter';
 import { StageTimer } from '@/components/pulpit/StageTimer';
 import { StageRailNav } from '@/components/pulpit/StageRailNav';
@@ -23,6 +24,7 @@ function PulpitContent() {
   const [theme, setTheme] = useState<ThemeMode>('oled');
   const [fontSize, setFontSize] = useState(34); // Optimal tablet readable size
   const [isOutlineOpen, setIsOutlineOpen] = useState(false);
+  const [isSummaryMode, setIsSummaryMode] = useState(false);
   const [activeVerse, setActiveVerse] = useState<VerseData | null>(null);
   const [isVerseModalOpen, setIsVerseModalOpen] = useState(false);
   const [activeSectionId, setActiveSectionId] = useState<string | null>(null);
@@ -183,6 +185,11 @@ function PulpitContent() {
           setIsOutlineOpen((prev) => !prev);
           break;
 
+        case 'KeyK':
+          e.preventDefault();
+          setIsSummaryMode((prev) => !prev);
+          break;
+
         case 'KeyR':
           if (e.shiftKey) {
             e.preventDefault();
@@ -234,19 +241,38 @@ function PulpitContent() {
         onAddMinutes={timer.addMinutes}
       />
 
-      {/* 2. Main Stage Teleprompter */}
+      {/* 2. Ultra-Discrete Minimalist Floating Summary / Outline Mode Toggle (Top-Right) */}
+      <div className="fixed top-8 sm:top-10 right-14 sm:right-20 z-30 select-none">
+        <button
+          onClick={() => setIsSummaryMode((prev) => !prev)}
+          className={`group flex items-center gap-1.5 px-2.5 py-1 sm:px-3 sm:py-1.5 rounded-full border backdrop-blur-md transition-all duration-300 text-xs font-mono cursor-pointer ${
+            isSummaryMode
+              ? 'bg-amber-500/20 border-amber-500/50 text-amber-300 opacity-90 shadow-lg'
+              : 'bg-zinc-950/40 border-zinc-800/40 text-zinc-500 hover:text-zinc-200 hover:border-zinc-700 opacity-20 hover:opacity-100'
+          }`}
+          title={isSummaryMode ? 'Показать полный текст (К)' : 'Краткий конспект (К)'}
+        >
+          <FileText className="w-3.5 h-3.5" />
+          <span className="text-[11px] font-medium hidden sm:inline">
+            {isSummaryMode ? 'Конспект' : 'Полный'}
+          </span>
+        </button>
+      </div>
+
+      {/* 3. Main Stage Teleprompter */}
       <Teleprompter
         content={sermon.content}
         fontSize={fontSize}
         theme={theme}
         containerRef={containerRef}
+        isSummaryMode={isSummaryMode}
         onOpenVerse={(verse) => {
           setActiveVerse(verse);
           setIsVerseModalOpen(true);
         }}
       />
 
-      {/* 3. Stage Rail Nav (Right-side 1-tap jumping between sections Option 1) */}
+      {/* 4. Stage Rail Nav (Right-side 1-tap jumping between sections Option 1) */}
       <StageRailNav
         outline={outlineItems}
         activeId={activeSectionId}
@@ -254,7 +280,7 @@ function PulpitContent() {
         theme={theme}
       />
 
-      {/* 4. Bottom Controls HUD (Hidden by default, iOS Home Indicator summoned Method 1) */}
+      {/* 5. Bottom Controls HUD (Hidden by default, iOS Home Indicator summoned Method 1) */}
       <PulpitControls
         fontSize={fontSize}
         onIncreaseFont={() => setFontSize((f) => Math.min(64, f + 2))}
@@ -267,6 +293,8 @@ function PulpitContent() {
         onIncreaseSpeed={autoscroll.increaseSpeed}
         onDecreaseSpeed={autoscroll.decreaseSpeed}
         isWakeLockActive={isWakeLockActive}
+        isSummaryMode={isSummaryMode}
+        onToggleSummaryMode={() => setIsSummaryMode((prev) => !prev)}
         onToggleOutline={() => setIsOutlineOpen((prev) => !prev)}
         onExit={() => router.push('/')}
       />

@@ -18,6 +18,7 @@ import {
   ArrowLeft,
   ChevronUp,
   ChevronDown,
+  FileText,
 } from 'lucide-react';
 import { ThemeMode } from '@/lib/types';
 
@@ -33,6 +34,8 @@ interface PulpitControlsProps {
   onIncreaseSpeed: () => void;
   onDecreaseSpeed: () => void;
   isWakeLockActive: boolean;
+  isSummaryMode?: boolean;
+  onToggleSummaryMode?: () => void;
   onToggleOutline: () => void;
   onExit: () => void;
 }
@@ -49,6 +52,8 @@ export function PulpitControls({
   onIncreaseSpeed,
   onDecreaseSpeed,
   isWakeLockActive,
+  isSummaryMode = false,
+  onToggleSummaryMode,
   onToggleOutline,
   onExit,
 }: PulpitControlsProps) {
@@ -156,6 +161,22 @@ export function PulpitControls({
             <List className="w-4 h-4 text-amber-400" />
             <span>План</span>
           </button>
+
+          {/* Summary Mode trigger */}
+          {onToggleSummaryMode && (
+            <button
+              onClick={onToggleSummaryMode}
+              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                isSummaryMode
+                  ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
+                  : 'opacity-80 hover:opacity-100 hover:bg-zinc-800/40'
+              }`}
+              title="Краткий конспект (К)"
+            >
+              <FileText className="w-4 h-4 text-amber-400" />
+              <span>{isSummaryMode ? 'Полный текст' : 'Конспект'}</span>
+            </button>
+          )}
 
           <div className="h-5 w-px bg-zinc-700/40 mx-1" />
 

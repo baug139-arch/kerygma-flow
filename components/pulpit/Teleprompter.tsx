@@ -11,6 +11,7 @@ interface TeleprompterProps {
   fontSize: number; // in px, e.g. 28, 36, 48
   theme: ThemeMode;
   containerRef: React.RefObject<HTMLDivElement | null>;
+  isSummaryMode?: boolean;
   onOpenVerse?: (verse: any) => void;
 }
 
@@ -19,6 +20,7 @@ export function Teleprompter({
   fontSize,
   theme,
   containerRef,
+  isSummaryMode = false,
 }: TeleprompterProps) {
   // Theme classes
   const getThemeClasses = () => {
@@ -321,17 +323,28 @@ export function Teleprompter({
     i++;
   }
 
+  const displayedBlocks = isSummaryMode
+    ? blocks.filter(
+        (b) =>
+          b.type === 'h1' ||
+          b.type === 'h2' ||
+          b.type === 'h3' ||
+          b.type === 'story' ||
+          b.type === 'scripture'
+      )
+    : blocks;
+
   return (
     <div
       ref={containerRef}
       className={`w-full h-full overflow-y-auto pl-24 sm:pl-32 lg:pl-40 pr-6 sm:pr-16 lg:pr-28 pt-24 sm:pt-28 pb-96 select-text transition-colors duration-200 ${themeStyles.bg}`}
       style={{
         fontSize: `${fontSize}px`,
-        lineHeight: 1.8,
+        lineHeight: isSummaryMode ? 2.0 : 1.8,
       }}
     >
-      <div className="max-w-4xl mx-auto space-y-6">
-        {blocks.map((block, idx) => {
+      <div className={`max-w-4xl mx-auto ${isSummaryMode ? 'space-y-8 sm:space-y-10' : 'space-y-6'}`}>
+        {displayedBlocks.map((block, idx) => {
           switch (block.type) {
             case 'h1':
               return (
