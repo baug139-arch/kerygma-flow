@@ -146,14 +146,15 @@ export function Teleprompter({
 
     // Heading 1
     if (line.startsWith('# ')) {
-      blocks.push({ type: 'h1', content: line.replace('# ', ''), index: i });
+      const clean = line.replace(/^#\s+/, '').replace(/^[*_\s]+|[*_\s]+$/g, '').trim();
+      blocks.push({ type: 'h1', content: clean, index: i });
       i++;
       continue;
     }
 
     // Intro Block (## 🧭 ...)
     if (line.startsWith('## 🧭') || line.toLowerCase().startsWith('## введение') || line.toLowerCase().startsWith('## 1. введение')) {
-      const clean = line.replace(/^##\s*(🧭|\d+\.)?\s*/i, '').trim() || 'Введение';
+      const clean = line.replace(/^##\s*(🧭|\d+\.)?\s*/i, '').replace(/^[*_\s]+|[*_\s]+$/g, '').trim() || 'Введение';
       blocks.push({
         type: 'intro',
         content: clean,
@@ -165,7 +166,7 @@ export function Teleprompter({
 
     // Conclusion Block (## 🏁 ...)
     if (line.startsWith('## 🏁') || line.toLowerCase().startsWith('## заключение') || line.toLowerCase().startsWith('## призыв')) {
-      const clean = line.replace(/^##\s*(🏁)?\s*/i, '').trim() || 'Заключение и призыв';
+      const clean = line.replace(/^##\s*(🏁)?\s*/i, '').replace(/^[*_\s]+|[*_\s]+$/g, '').trim() || 'Заключение и призыв';
       blocks.push({
         type: 'conclusion',
         content: clean,
@@ -177,14 +178,24 @@ export function Teleprompter({
 
     // Heading 2
     if (line.startsWith('## ')) {
-      blocks.push({ type: 'h2', content: line.replace('## ', ''), index: i });
+      const clean = line.replace(/^##\s+/, '').replace(/^[*_\s]+|[*_\s]+$/g, '').trim();
+      blocks.push({ type: 'h2', content: clean, index: i });
       i++;
       continue;
     }
 
     // Heading 3
     if (line.startsWith('### ')) {
-      blocks.push({ type: 'h3', content: line.replace('### ', ''), index: i });
+      const clean = line.replace(/^###\s+/, '').replace(/^[*_\s]+|[*_\s]+$/g, '').trim();
+      blocks.push({ type: 'h3', content: clean, index: i });
+      i++;
+      continue;
+    }
+
+    // Auto-detect bold numbered headings like "**1. Суть научного феномена**" as H2
+    const boldNumberedMatch = line.match(/^\*\*\s*(\d+\.?\s+[^\*]+)\s*\*\*$/);
+    if (boldNumberedMatch) {
+      blocks.push({ type: 'h2', content: boldNumberedMatch[1].trim(), index: i });
       i++;
       continue;
     }
@@ -450,19 +461,24 @@ export function Teleprompter({
 
 // Helper for inline markdown (**bold**, *italic*)
 function renderInlineFormatted(text: string, themeStyles: any) {
-  const parts = text.split(/(\*\*.*?\*\*|\*.*?\*)/g);
+  // Normalize internal whitespace inside asterisks (e.g. "** text **" -> "**text**")
+  const normalized = text
+    .replace(/\*\*\s*(.*?)\s*\*\*/g, '**$1**')
+    .replace(/\*\s*(.*?)\s*\*/g, '*$1*');
+
+  const parts = normalized.split(/(\*\*.*?\*\*|\*.*?\*)/g);
 
   return (
     <>
       {parts.map((part, i) => {
-        if (part.startsWith('**') && part.endsWith('**')) {
+        if (part.startsWith('**') && part.endsWith('**') && part.length >= 4) {
           return (
             <strong key={i} className={themeStyles.bold}>
               {part.slice(2, -2)}
             </strong>
           );
         }
-        if (part.startsWith('*') && part.endsWith('*')) {
+        if (part.startsWith('*') && part.endsWith('*') && part.length >= 2) {
           return (
             <em key={i} className="italic opacity-90">
               {part.slice(1, -1)}

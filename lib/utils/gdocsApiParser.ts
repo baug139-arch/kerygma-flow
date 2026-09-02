@@ -1,5 +1,4 @@
 import { decodeHtmlEntities } from './htmlDecoder';
-import { ParsedDocSection } from './sectionParser';
 
 export interface GDocTab {
   id: string;
@@ -8,7 +7,14 @@ export interface GDocTab {
   wordCount: number;
 }
 
-// Convert a Google Docs API StructuralElement[] body to formatted Markdown
+// Clean helper to remove redundant markdown asterisks from heading strings
+export function cleanHeadingText(text: string): string {
+  return text
+    .replace(/^[*#_\s]+|[*#_\s]+$/g, '')
+    .trim();
+}
+
+// Convert a Google Docs API StructuralElement[] body to clean formatted Markdown
 export function convertDocsApiBodyToMarkdown(elements: any[]): string {
   if (!Array.isArray(elements)) return '';
 
@@ -27,19 +33,27 @@ export function convertDocsApiBodyToMarkdown(elements: any[]): string {
             let runText = pe.textRun.content;
             const style = pe.textRun.textStyle || {};
 
-            // Strip trailing newline from runText before formatting
             const hasTrailingNewline = runText.endsWith('\n');
             if (hasTrailingNewline) {
               runText = runText.slice(0, -1);
             }
 
-            if (runText) {
-              if (style.bold && style.italic) {
-                runText = `***${runText}***`;
-              } else if (style.bold) {
-                runText = `**${runText}**`;
-              } else if (style.italic) {
-                runText = `*${runText}*`;
+            // Only apply inline bold/italic if not already a heading
+            const isHeadingStyle = namedStyle.startsWith('HEADING_') || namedStyle === 'TITLE' || namedStyle === 'SUBTITLE';
+
+            if (runText && !isHeadingStyle) {
+              const trimmedRun = runText.trim();
+              if (trimmedRun) {
+                const leadingSpace = runText.startsWith(' ') ? ' ' : '';
+                const trailingSpace = runText.endsWith(' ') ? ' ' : '';
+
+                if (style.bold && style.italic) {
+                  runText = `${leadingSpace}***${trimmedRun}***${trailingSpace}`;
+                } else if (style.bold) {
+                  runText = `${leadingSpace}**${trimmedRun}**${trailingSpace}`;
+                } else if (style.italic) {
+                  runText = `${leadingSpace}*${trimmedRun}*${trailingSpace}`;
+                }
               }
             }
 
@@ -55,18 +69,23 @@ export function convertDocsApiBodyToMarkdown(elements: any[]): string {
 
       // Check Heading Styles
       if (namedStyle === 'TITLE' || namedStyle === 'HEADING_1') {
-        mdParts.push(`# ${trimmedP}`);
+        mdParts.push(`# ${cleanHeadingText(trimmedP)}`);
       } else if (namedStyle === 'HEADING_2') {
-        mdParts.push(`## ${trimmedP}`);
+        mdParts.push(`## ${cleanHeadingText(trimmedP)}`);
       } else if (namedStyle === 'HEADING_3') {
-        mdParts.push(`### ${trimmedP}`);
+        mdParts.push(`### ${cleanHeadingText(trimmedP)}`);
       } else if (bullet) {
         mdParts.push(`- ${trimmedP}`);
       } else {
-        mdParts.push(trimmedP);
+        // If an entire paragraph is bold like "**1. Суть научного явления**", convert it to a clean H2 heading!
+        const fullBoldMatch = trimmedP.match(/^\*\*\s*(\d+\.?\s*.*?)\s*\*\*$/);
+        if (fullBoldMatch && fullBoldMatch[1].length < 120) {
+          mdParts.push(`## ${cleanHeadingText(fullBoldMatch[1])}`);
+        } else {
+          mdParts.push(trimmedP);
+        }
       }
     } else if (el.table) {
-      // Basic table extraction
       const table = el.table;
       if (Array.isArray(table.tableRows)) {
         for (const row of table.tableRows) {
@@ -109,7 +128,6 @@ export function extractTabsFromDocsApiResponse(docJson: any): GDocTab[] {
       });
     }
   } else if (docJson.body?.content) {
-    // Single tab document fallback
     const markdown = convertDocsApiBodyToMarkdown(docJson.body.content);
     const wordCount = markdown.split(/\s+/).filter(Boolean).length;
     tabs.push({

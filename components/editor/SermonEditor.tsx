@@ -52,7 +52,7 @@ function markdownToHtml(md: string): string {
 
     // H1
     if (line.startsWith('# ')) {
-      const text = line.replace('# ', '').trim();
+      const text = line.replace(/^#\s+/, '').replace(/^[*_\s]+|[*_\s]+$/g, '').trim();
       html += `<h1 class="text-3xl sm:text-4xl font-black text-amber-400 border-b border-zinc-800 pb-3 pt-4 my-4 tracking-tight">${escapeHtml(text)}</h1>`;
       i++;
       continue;
@@ -60,7 +60,7 @@ function markdownToHtml(md: string): string {
 
     // Intro Block (## 🧭 ...)
     if (line.startsWith('## 🧭') || line.toLowerCase().startsWith('## введение') || line.toLowerCase().startsWith('## 1. введение')) {
-      const text = line.replace(/^##\s*(🧭|\d+\.)?\s*/i, '').trim();
+      const text = line.replace(/^##\s*(🧭|\d+\.)?\s*/i, '').replace(/^[*_\s]+|[*_\s]+$/g, '').trim();
       html += `
         <div class="my-5 p-5 rounded-2xl bg-gradient-to-r from-teal-950/40 via-emerald-950/30 to-zinc-900/40 border-l-4 border-emerald-400 border-y border-r border-emerald-500/20 text-emerald-100 shadow-md" data-block="intro">
           <div class="text-emerald-400 font-bold text-xs uppercase tracking-wider flex items-center gap-1.5 mb-2 select-none" contenteditable="false">
@@ -76,7 +76,7 @@ function markdownToHtml(md: string): string {
 
     // Conclusion Block (## 🏁 ...)
     if (line.startsWith('## 🏁') || line.toLowerCase().startsWith('## заключение') || line.toLowerCase().startsWith('## призыв')) {
-      const text = line.replace(/^##\s*(🏁)?\s*/i, '').trim();
+      const text = line.replace(/^##\s*(🏁)?\s*/i, '').replace(/^[*_\s]+|[*_\s]+$/g, '').trim();
       html += `
         <div class="my-5 p-5 rounded-2xl bg-gradient-to-r from-amber-950/40 via-orange-950/30 to-zinc-900/40 border-l-4 border-amber-400 border-y border-r border-amber-500/20 text-amber-100 shadow-md" data-block="conclusion">
           <div class="text-amber-400 font-bold text-xs uppercase tracking-wider flex items-center gap-1.5 mb-2 select-none" contenteditable="false">
@@ -92,7 +92,7 @@ function markdownToHtml(md: string): string {
 
     // H2
     if (line.startsWith('## ')) {
-      const text = line.replace('## ', '').trim();
+      const text = line.replace(/^##\s+/, '').replace(/^[*_\s]+|[*_\s]+$/g, '').trim();
       html += `<h2 class="text-2xl font-extrabold text-amber-300 border-l-4 border-amber-500 pl-4 my-5 tracking-tight">${escapeHtml(text)}</h2>`;
       i++;
       continue;
@@ -100,8 +100,17 @@ function markdownToHtml(md: string): string {
 
     // H3
     if (line.startsWith('### ')) {
-      const text = line.replace('### ', '').trim();
+      const text = line.replace(/^###\s+/, '').replace(/^[*_\s]+|[*_\s]+$/g, '').trim();
       html += `<h3 class="text-xl font-bold text-zinc-200 my-3">${escapeHtml(text)}</h3>`;
+      i++;
+      continue;
+    }
+
+    // Auto-detect bold numbered headings like "**1. Суть научного феномена**" as H2
+    const boldNumMatch = line.match(/^\*\*\s*(\d+\.?\s+[^\*]+)\s*\*\*$/);
+    if (boldNumMatch) {
+      const text = boldNumMatch[1].trim();
+      html += `<h2 class="text-2xl font-extrabold text-amber-300 border-l-4 border-amber-500 pl-4 my-5 tracking-tight">${escapeHtml(text)}</h2>`;
       i++;
       continue;
     }
@@ -308,7 +317,11 @@ function escapeHtml(str: string): string {
 }
 
 function inlineMarkdownToHtml(str: string): string {
-  let res = escapeHtml(str);
+  // Normalize internal whitespace inside asterisks before replacing
+  const normalized = str
+    .replace(/\*\*\s*(.*?)\s*\*\*/g, '**$1**')
+    .replace(/\*\s*(.*?)\s*\*/g, '*$1*');
+  let res = escapeHtml(normalized);
   res = res.replace(/\*\*(.*?)\*\*/g, '<strong class="text-amber-300 font-bold underline decoration-amber-500/40 underline-offset-4">$1</strong>');
   res = res.replace(/\*(.*?)\*/g, '<em class="italic opacity-90">$1</em>');
   return res;
