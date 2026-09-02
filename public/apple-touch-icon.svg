@@ -1,0 +1,78 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <!-- Background Gradient -->
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#141417" />
+      <stop offset="50%" stop-color="#0a0a0c" />
+      <stop offset="100%" stop-color="#050507" />
+    </linearGradient>
+
+    <!-- Border Ring Gradient -->
+    <linearGradient id="ringGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#fbbf24" stop-opacity="0.4" />
+      <stop offset="50%" stop-color="#d97706" stop-opacity="0.1" />
+      <stop offset="100%" stop-color="#78350f" stop-opacity="0.2" />
+    </linearGradient>
+
+    <!-- Gold Accent Gradient -->
+    <linearGradient id="goldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#fef3c7" />
+      <stop offset="25%" stop-color="#fde68a" />
+      <stop offset="60%" stop-color="#f59e0b" />
+      <stop offset="100%" stop-color="#b45309" />
+    </linearGradient>
+
+    <!-- Glowing Pulpit Light Beam -->
+    <linearGradient id="beamGrad" x1="50%" y1="0%" x2="50%" y2="100%">
+      <stop offset="0%" stop-color="#fef3c7" stop-opacity="0.35" />
+      <stop offset="40%" stop-color="#f59e0b" stop-opacity="0.15" />
+      <stop offset="100%" stop-color="#f59e0b" stop-opacity="0" />
+    </linearGradient>
+
+    <!-- Stand Shadow -->
+    <filter id="goldGlow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="16" result="blur" />
+      <feComposite in="SourceGraphic" in2="blur" operator="over" />
+    </filter>
+  </defs>
+
+  <!-- iOS Squircle Background -->
+  <rect width="512" height="512" rx="116" fill="url(#bgGrad)" />
+  <rect width="508" height="508" x="2" y="2" rx="114" fill="none" stroke="url(#ringGrad)" stroke-width="2.5" />
+
+  <!-- Heavenly Stage Light Cone from Top -->
+  <polygon points="256,70 120,430 392,430" fill="url(#beamGrad)" />
+
+  <!-- The Open Word / Scripture Pages (Top of Pulpit) -->
+  <!-- Left Page -->
+  <path d="M 256 185 C 215 165, 170 170, 142 184 C 137 186, 134 192, 134 198 L 134 265 C 134 271, 140 276, 146 273 C 172 260, 215 255, 256 272 Z"
+        fill="url(#goldGrad)" />
+  
+  <!-- Right Page -->
+  <path d="M 256 185 C 297 165, 342 170, 370 184 C 375 186, 378 192, 378 198 L 378 265 C 378 271, 372 276, 366 273 C 340 260, 297 255, 256 272 Z"
+        fill="url(#goldGrad)" opacity="0.9" />
+
+  <!-- Center Spine / Light Spark -->
+  <path d="M 256 185 L 256 272" stroke="#fffbeb" stroke-width="3" stroke-linecap="round" />
+
+  <!-- The Architectural Pulpit (Кафедра) -->
+  <!-- Upper Desk Plinth -->
+  <path d="M 175 285 L 337 285 L 322 305 L 190 305 Z" fill="url(#goldGrad)" />
+
+  <!-- Central Monolithic Pillar / Stand (Forming Letter "К" Geometry) -->
+  <path d="M 215 315 L 235 315 L 235 410 L 215 410 Z" fill="url(#goldGrad)" opacity="0.85" />
+  
+  <!-- "K" Right Top Angle -->
+  <path d="M 235 362 L 295 315 L 315 315 L 255 362 Z" fill="url(#goldGrad)" />
+
+  <!-- "K" Right Bottom Leg -->
+  <path d="M 245 355 L 310 410 L 285 410 L 235 368 Z" fill="url(#goldGrad)" />
+
+  <!-- Heavy Stage Base -->
+  <rect x="170" y="415" width="172" height="14" rx="7" fill="url(#goldGrad)" />
+  <rect x="195" y="408" width="122" height="8" rx="4" fill="#fde68a" opacity="0.6" />
+
+  <!-- Central Star of Truth / Accent Spark -->
+  <circle cx="256" cy="145" r="4" fill="#ffffff" filter="url(#goldGlow)" />
+  <path d="M 256 130 L 256 160 M 241 145 L 271 145" stroke="#ffffff" stroke-width="2.5" stroke-linecap="round" opacity="0.9" />
+</svg>

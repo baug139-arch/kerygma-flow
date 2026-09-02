@@ -186,17 +186,17 @@ export default function DashboardPage() {
       <header className="border-b border-zinc-800 bg-zinc-950/80 backdrop-blur-md sticky top-0 z-20">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 py-3.5 flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-2xl bg-gradient-to-br from-amber-400 to-amber-600 flex items-center justify-center text-black font-black text-lg shadow-lg shadow-amber-500/20">
-              K
+            <div className="w-9 h-9 rounded-2xl bg-gradient-to-br from-amber-400 via-amber-500 to-amber-600 flex items-center justify-center text-black font-black text-xl shadow-lg shadow-amber-500/25">
+              А
             </div>
             <div>
               <h1 className="text-base sm:text-lg font-extrabold tracking-tight flex items-center gap-2">
-                Kerygma Flow
+                Амвон
                 <span className="text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-400 border border-amber-500/20">
                   Кафедра
                 </span>
               </h1>
-              <p className="text-[11px] text-zinc-500 hidden sm:block">Сценический суфлёр-пульт для спикеров</p>
+              <p className="text-[11px] text-zinc-500 hidden sm:block">Сценический суфлёр-пульт для проповедников</p>
             </div>
           </div>
 

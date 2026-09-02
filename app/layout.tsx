@@ -2,13 +2,18 @@ import type { Metadata, Viewport } from 'next';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'Kerygma Flow — Суфлёр для кафедры',
-  description: 'Специализированный суфлер-пульт для спикеров и священнослужителей, синхронизированный с Google Диском и Библией',
+  title: 'Амвон — Сценический суфлёр-пульт для проповеди',
+  description: 'Профессиональный суфлёр-пульт для проповедников и спикеров с синхронизацией Google Docs и Библии',
   manifest: '/manifest.json',
+  icons: {
+    icon: '/icon.svg',
+    shortcut: '/icon.svg',
+    apple: '/icon.svg',
+  },
   appleWebApp: {
     capable: true,
     statusBarStyle: 'black-translucent',
-    title: 'Kerygma Flow',
+    title: 'Амвон',
   },
 };
 
@@ -28,6 +33,10 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="ru" className="dark">
+      <head>
+        <link rel="icon" href="/icon.svg" type="image/svg+xml" />
+        <link rel="apple-touch-icon" href="/icon.svg" />
+      </head>
       <body className="antialiased select-none">{children}</body>
     </html>
   );

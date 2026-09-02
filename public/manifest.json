@@ -1,11 +1,12 @@
 {
-  "name": "Kerygma Flow — Суфлёр для кафедры",
-  "short_name": "Kerygma Flow",
-  "description": "Специализированный суфлер-пульт для спикеров и священнослужителей",
-  "start_url": "/pulpit",
+  "name": "Амвон",
+  "short_name": "Амвон",
+  "description": "Сценический суфлёр-пульт для проповеди с синхронизацией Google Docs и Библии",
+  "start_url": "/",
   "display": "standalone",
   "background_color": "#000000",
   "theme_color": "#000000",
+  "orientation": "any",
   "icons": [
     {
       "src": "/icon.svg",
