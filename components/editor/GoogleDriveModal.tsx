@@ -13,8 +13,6 @@ import {
   AlertCircle,
   LogIn,
   LogOut,
-  Key,
-  HelpCircle,
   Clock,
 } from 'lucide-react';
 import { Sermon } from '@/lib/types';
@@ -28,8 +26,6 @@ interface GoogleDriveModalProps {
 
 export function GoogleDriveModal({ isOpen, onClose, onImportDoc }: GoogleDriveModalProps) {
   const [activeTab, setActiveTab] = useState<'direct' | 'link'>('direct');
-  const [showConfig, setShowConfig] = useState(false);
-  const [inputClientId, setInputClientId] = useState('');
   const [selectedDocId, setSelectedDocId] = useState<string | null>(null);
 
   // Link import fallback state
@@ -38,8 +34,6 @@ export function GoogleDriveModal({ isOpen, onClose, onImportDoc }: GoogleDriveMo
   const [urlError, setUrlError] = useState<string | null>(null);
 
   const {
-    clientId,
-    saveClientId,
     accessToken,
     userEmail,
     files,
@@ -179,10 +173,7 @@ export function GoogleDriveModal({ isOpen, onClose, onImportDoc }: GoogleDriveMo
                   </div>
 
                   <button
-                    onClick={() => {
-                      if (!clientId) setShowConfig(true);
-                      else login();
-                    }}
+                    onClick={login}
                     disabled={isLoading}
                     className="w-full flex items-center justify-center gap-2 py-3 px-4 rounded-2xl text-xs sm:text-sm font-bold bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-black shadow-lg shadow-amber-500/20 transition-all active:scale-98"
                   >
@@ -193,54 +184,6 @@ export function GoogleDriveModal({ isOpen, onClose, onImportDoc }: GoogleDriveMo
                     )}
                     <span>Войти через Google и открыть файлы</span>
                   </button>
-                </div>
-
-                {/* Google Client ID Configuration */}
-                <div className="border-t border-zinc-800/80 pt-3">
-                  <button
-                    onClick={() => setShowConfig(!showConfig)}
-                    className="w-full flex items-center justify-between text-xs text-zinc-500 hover:text-zinc-300 py-1 transition-colors"
-                  >
-                    <span className="flex items-center gap-1.5 font-medium">
-                      <Key className="w-3.5 h-3.5 text-amber-500/80" />
-                      <span>{clientId ? 'Google Client ID настроен' : 'Настроить Google Client ID'}</span>
-                    </span>
-                    <span className="text-[10px] text-amber-400 underline">
-                      {showConfig ? 'Скрыть' : 'Изменить'}
-                    </span>
-                  </button>
-
-                  {showConfig && (
-                    <div className="mt-2.5 p-4 rounded-2xl bg-zinc-950 border border-zinc-800 space-y-3 animate-in fade-in">
-                      <div>
-                        <label className="text-[11px] font-semibold text-zinc-400">
-                          OAuth 2.0 Client ID (из Google Cloud Console):
-                        </label>
-                        <input
-                          type="text"
-                          value={inputClientId || clientId}
-                          onChange={(e) => setInputClientId(e.target.value)}
-                          placeholder="...apps.googleusercontent.com"
-                          className="w-full mt-1.5 bg-zinc-900 border border-zinc-800 rounded-xl px-3 py-2 text-xs text-zinc-200 placeholder-zinc-700 focus:outline-none focus:border-amber-500/50 font-mono"
-                        />
-                      </div>
-
-                      <div className="flex items-center justify-between">
-                        <span className="text-[10px] text-zinc-500">
-                          Origin: <code className="text-zinc-400">http://localhost:3000</code>
-                        </span>
-                        <button
-                          onClick={() => {
-                            if (inputClientId) saveClientId(inputClientId);
-                            setShowConfig(false);
-                          }}
-                          className="px-3 py-1.5 rounded-xl text-xs font-bold bg-amber-500 text-black hover:bg-amber-400"
-                        >
-                          Сохранить ID
-                        </button>
-                      </div>
-                    </div>
-                  )}
                 </div>
               </div>
             ) : (

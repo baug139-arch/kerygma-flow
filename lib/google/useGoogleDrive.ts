@@ -1,6 +1,14 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import { auth, googleDriveProvider } from '@/lib/firebase/config';
+import {
+  signInWithPopup,
+  signOut,
+  onAuthStateChanged,
+  GoogleAuthProvider,
+  User,
+} from 'firebase/auth';
 
 export interface GoogleDriveFile {
   id: string;
@@ -8,68 +16,45 @@ export interface GoogleDriveFile {
   modifiedTime: string;
 }
 
-const SCOPES = 'https://www.googleapis.com/auth/drive.readonly https://www.googleapis.com/auth/documents.readonly';
-
 export function useGoogleDrive() {
-  const [clientId, setClientId] = useState<string>('');
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [accessToken, setAccessToken] = useState<string | null>(null);
   const [userEmail, setUserEmail] = useState<string | null>(null);
   const [files, setFiles] = useState<GoogleDriveFile[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
-  const [isGsiLoaded, setIsGsiLoaded] = useState<boolean>(false);
 
-  // Load client ID from env or localStorage
+  // Load saved token from localStorage
   useEffect(() => {
-    const envClientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || '736137736866-gp99nankl7csfifn5nlsllolacjdpqgv.apps.googleusercontent.com';
-    const storedClientId = typeof window !== 'undefined' ? localStorage.getItem('kerygma_google_client_id') || '' : '';
-    const storedToken = typeof window !== 'undefined' ? localStorage.getItem('kerygma_google_access_token') : null;
-    const storedEmail = typeof window !== 'undefined' ? localStorage.getItem('kerygma_google_user_email') : null;
-
-    const activeId = storedClientId || envClientId;
-    setClientId(activeId);
-    if (storedToken) setAccessToken(storedToken);
-    if (storedEmail) setUserEmail(storedEmail);
-  }, []);
-
-  // Dynamically load Google Identity Services Script
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-
-    if (window.google?.accounts?.oauth2) {
-      setIsGsiLoaded(true);
-      return;
-    }
-
-    const script = document.createElement('script');
-    script.src = 'https://accounts.google.com/gsi/client';
-    script.async = true;
-    script.defer = true;
-    script.onload = () => setIsGsiLoaded(true);
-    document.body.appendChild(script);
-
-    return () => {
-      // Keep script in head/body
-    };
-  }, []);
-
-  const saveClientId = (newId: string) => {
-    setClientId(newId);
     if (typeof window !== 'undefined') {
-      localStorage.setItem('kerygma_google_client_id', newId);
+      const storedToken = localStorage.getItem('kerygma_google_access_token');
+      const storedEmail = localStorage.getItem('kerygma_google_user_email');
+      if (storedToken) setAccessToken(storedToken);
+      if (storedEmail) setUserEmail(storedEmail);
     }
-  };
+  }, []);
 
-  // Fetch real Google Docs list using access token
+  // Track Firebase Auth state
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      setCurrentUser(user);
+      if (user?.email) {
+        setUserEmail(user.email);
+        localStorage.setItem('kerygma_google_user_email', user.email);
+      }
+    });
+    return () => unsubscribe();
+  }, []);
+
+  // Fetch real Google Docs list from Google Drive API
   const fetchFiles = useCallback(async (token: string) => {
     setIsLoading(true);
     setError(null);
 
     try {
-      // Query Google Drive API for Google Docs files
       const query = encodeURIComponent("mimeType = 'application/vnd.google-apps.document' and trashed = false");
       const res = await fetch(
-        `https://www.googleapis.com/drive/v3/files?q=${query}&orderBy=modifiedTime desc&pageSize=25&fields=files(id,name,modifiedTime)`,
+        `https://www.googleapis.com/drive/v3/files?q=${query}&orderBy=modifiedTime desc&pageSize=30&fields=files(id,name,modifiedTime)`,
         {
           headers: {
             Authorization: `Bearer ${token}`,
@@ -79,7 +64,6 @@ export function useGoogleDrive() {
 
       if (!res.ok) {
         if (res.status === 401) {
-          // Token expired
           setAccessToken(null);
           if (typeof window !== 'undefined') {
             localStorage.removeItem('kerygma_google_access_token');
@@ -92,83 +76,61 @@ export function useGoogleDrive() {
 
       const data = await res.json();
       setFiles(data.files || []);
-
-      // Also get user info if email is not set
-      if (!userEmail) {
-        try {
-          const userRes = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
-            headers: { Authorization: `Bearer ${token}` },
-          });
-          if (userRes.ok) {
-            const userData = await userRes.json();
-            if (userData.email) {
-              setUserEmail(userData.email);
-              localStorage.setItem('kerygma_google_user_email', userData.email);
-            }
-          }
-        } catch {
-          // non-critical
-        }
-      }
     } catch (err: any) {
-      setError(err.message || 'Не удалось получить список файлов');
+      setError(err.message || 'Не удалось получить список файлов с Google Диска');
     } finally {
       setIsLoading(false);
     }
-  }, [userEmail]);
+  }, []);
 
-  // Load files automatically if token exists
+  // Automatically fetch files when access token is present
   useEffect(() => {
     if (accessToken) {
       fetchFiles(accessToken);
     }
   }, [accessToken, fetchFiles]);
 
-  // Trigger Google OAuth 2.0 Pop-up
-  const login = () => {
-    if (!clientId) {
-      setError('Для прямого доступа укажите Google Client ID');
-      return;
-    }
-
-    if (!window.google?.accounts?.oauth2) {
-      setError('Модуль Google Identity еще загружается. Попробуйте через секунду.');
-      return;
-    }
-
+  // Seamless Firebase Google Sign-In with Drive scopes
+  const login = async () => {
     setError(null);
     setIsLoading(true);
 
     try {
-      const client = window.google.accounts.oauth2.initTokenClient({
-        client_id: clientId,
-        scope: SCOPES,
-        callback: (response: any) => {
-          if (response.error) {
-            setError(`Ошибка авторизации: ${response.error}`);
-            setIsLoading(false);
-            return;
-          }
+      const result = await signInWithPopup(auth, googleDriveProvider);
+      const credential = GoogleAuthProvider.credentialFromResult(result);
+      const token = credential?.accessToken;
 
-          if (response.access_token) {
-            const token = response.access_token;
-            setAccessToken(token);
-            if (typeof window !== 'undefined') {
-              localStorage.setItem('kerygma_google_access_token', token);
-            }
-            fetchFiles(token);
-          }
-        },
-      });
+      if (!token) {
+        throw new Error('Не удалось получить токен доступа к Google Диску');
+      }
 
-      client.requestAccessToken();
+      setAccessToken(token);
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('kerygma_google_access_token', token);
+        if (result.user.email) {
+          localStorage.setItem('kerygma_google_user_email', result.user.email);
+          setUserEmail(result.user.email);
+        }
+      }
+
+      await fetchFiles(token);
     } catch (err: any) {
-      setError(err.message || 'Ошибка запуска окна авторизации Google');
+      if (err.code === 'auth/popup-closed-by-user') {
+        setError('Окно авторизации было закрыто.');
+      } else {
+        setError(err.message || 'Ошибка авторизации Google');
+      }
+    } finally {
       setIsLoading(false);
     }
   };
 
-  const logout = () => {
+  const logout = async () => {
+    try {
+      await signOut(auth);
+    } catch {
+      // non-critical
+    }
     setAccessToken(null);
     setUserEmail(null);
     setFiles([]);
@@ -178,13 +140,12 @@ export function useGoogleDrive() {
     }
   };
 
-  // Download Google Doc content in HTML and convert to sermon format
+  // Download Google Doc and convert to sermon format
   const getDocumentContent = async (fileId: string): Promise<{ title: string; content: string }> => {
     if (!accessToken) throw new Error('Требуется авторизация в Google');
 
     setIsLoading(true);
     try {
-      // 1. Export as HTML
       const exportUrl = `https://www.googleapis.com/drive/v3/files/${fileId}/export?mimeType=text/html`;
       const res = await fetch(exportUrl, {
         headers: {
@@ -212,26 +173,17 @@ export function useGoogleDrive() {
   };
 
   return {
-    clientId,
-    saveClientId,
+    currentUser,
     accessToken,
     userEmail,
     files,
     isLoading,
     error,
-    isGsiLoaded,
     login,
     logout,
     refreshFiles: () => accessToken && fetchFiles(accessToken),
     getDocumentContent,
   };
-}
-
-declare global {
-  interface Window {
-    google?: any;
-    gapi?: any;
-  }
 }
 
 function convertGoogleDocHtmlToMarkdown(html: string): string {
