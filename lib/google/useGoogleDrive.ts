@@ -9,12 +9,14 @@ import {
   GoogleAuthProvider,
   User,
 } from 'firebase/auth';
-import { convertGoogleDocHtmlToMarkdown } from '@/lib/utils/htmlDecoder';
+import { convertGoogleDocHtmlToMarkdown, decodeHtmlEntities } from '@/lib/utils/htmlDecoder';
 
 export interface GoogleDriveFile {
   id: string;
   name: string;
   modifiedTime: string;
+  mimeType?: string;
+  size?: string;
 }
 
 export function useGoogleDrive() {
@@ -47,21 +49,28 @@ export function useGoogleDrive() {
     return () => unsubscribe();
   }, []);
 
-  // Fetch real Google Docs list from Google Drive API
-  const fetchFiles = useCallback(async (token: string) => {
+  // Fetch real Google Docs list from Google Drive API with broad search and 100+ files
+  const fetchFiles = useCallback(async (token: string, searchKeyword = '') => {
     setIsLoading(true);
     setError(null);
 
     try {
-      const query = encodeURIComponent("mimeType = 'application/vnd.google-apps.document' and trashed = false");
-      const res = await fetch(
-        `https://www.googleapis.com/drive/v3/files?q=${query}&orderBy=modifiedTime desc&pageSize=30&fields=files(id,name,modifiedTime)`,
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        }
-      );
+      // Broad query for Google Docs, Word Docs, and text files that are not in trash
+      let q = "(mimeType = 'application/vnd.google-apps.document' or mimeType = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' or mimeType = 'text/plain' or mimeType = 'text/markdown') and trashed = false";
+
+      if (searchKeyword.trim()) {
+        const sanitized = searchKeyword.replace(/'/g, "\\'");
+        q += ` and (name contains '${sanitized}')`;
+      }
+
+      const encodedQ = encodeURIComponent(q);
+      const url = `https://www.googleapis.com/drive/v3/files?q=${encodedQ}&orderBy=modifiedTime desc&pageSize=100&fields=files(id,name,modifiedTime,mimeType,size)&supportsAllDrives=true&includeItemsFromAllDrives=true`;
+
+      const res = await fetch(url, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
 
       if (!res.ok) {
         if (res.status === 401) {
@@ -141,28 +150,61 @@ export function useGoogleDrive() {
     }
   };
 
-  // Download Google Doc and convert to sermon format
+  // Download Google Doc / file and convert to clean sermon format
   const getDocumentContent = async (fileId: string): Promise<{ title: string; content: string }> => {
     if (!accessToken) throw new Error('Требуется авторизация в Google');
 
     setIsLoading(true);
     try {
-      const exportUrl = `https://www.googleapis.com/drive/v3/files/${fileId}/export?mimeType=text/html`;
-      const res = await fetch(exportUrl, {
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-        },
-      });
-
-      if (!res.ok) {
-        throw new Error('Не удалось экспортировать документ из Google Docs');
-      }
-
-      const html = await res.text();
       const fileMeta = files.find((f) => f.id === fileId);
+      const mimeType = fileMeta?.mimeType || 'application/vnd.google-apps.document';
       const title = fileMeta?.name || 'Проповедь из Google Docs';
 
-      const markdown = convertGoogleDocHtmlToMarkdown(html);
+      let markdown = '';
+
+      if (mimeType === 'application/vnd.google-apps.document') {
+        // Native Google Docs: export to HTML and parse
+        const exportUrl = `https://www.googleapis.com/drive/v3/files/${fileId}/export?mimeType=text/html`;
+        const res = await fetch(exportUrl, {
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+          },
+        });
+
+        if (!res.ok) {
+          throw new Error('Не удалось экспортировать документ из Google Docs');
+        }
+
+        const html = await res.text();
+        markdown = convertGoogleDocHtmlToMarkdown(html);
+      } else {
+        // Text / plain / docx / other: fetch direct content
+        const fetchUrl = `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`;
+        const res = await fetch(fetchUrl, {
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+          },
+        });
+
+        if (!res.ok) {
+          // Fallback export to text/plain
+          const exportUrl = `https://www.googleapis.com/drive/v3/files/${fileId}/export?mimeType=text/plain`;
+          const resExport = await fetch(exportUrl, {
+            headers: {
+              Authorization: `Bearer ${accessToken}`,
+            },
+          });
+          if (resExport.ok) {
+            const rawText = await resExport.text();
+            markdown = decodeHtmlEntities(rawText);
+          } else {
+            throw new Error('Не удалось прочитать файл с Google Диска');
+          }
+        } else {
+          const rawText = await res.text();
+          markdown = decodeHtmlEntities(rawText);
+        }
+      }
 
       return {
         title,
@@ -182,7 +224,7 @@ export function useGoogleDrive() {
     error,
     login,
     logout,
-    refreshFiles: () => accessToken && fetchFiles(accessToken),
+    refreshFiles: (searchKeyword = '') => accessToken && fetchFiles(accessToken, searchKeyword),
     getDocumentContent,
   };
 }

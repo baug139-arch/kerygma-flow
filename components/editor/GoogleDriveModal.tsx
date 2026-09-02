@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   X,
   HardDrive,
@@ -14,6 +14,8 @@ import {
   LogIn,
   LogOut,
   Clock,
+  Search,
+  FileCode,
 } from 'lucide-react';
 import { Sermon } from '@/lib/types';
 import { useGoogleDrive } from '@/lib/google/useGoogleDrive';
@@ -27,6 +29,7 @@ interface GoogleDriveModalProps {
 export function GoogleDriveModal({ isOpen, onClose, onImportDoc }: GoogleDriveModalProps) {
   const [activeTab, setActiveTab] = useState<'direct' | 'link'>('direct');
   const [selectedDocId, setSelectedDocId] = useState<string | null>(null);
+  const [searchFilter, setSearchFilter] = useState('');
 
   // Link import fallback state
   const [docUrl, setDocUrl] = useState('');
@@ -44,6 +47,13 @@ export function GoogleDriveModal({ isOpen, onClose, onImportDoc }: GoogleDriveMo
     refreshFiles,
     getDocumentContent,
   } = useGoogleDrive();
+
+  // Client-side instant filter on top of fetched files
+  const filteredFiles = useMemo(() => {
+    if (!searchFilter.trim()) return files;
+    const query = searchFilter.toLowerCase().trim();
+    return files.filter((f) => f.name.toLowerCase().includes(query));
+  }, [files, searchFilter]);
 
   if (!isOpen) return null;
 
@@ -158,7 +168,7 @@ export function GoogleDriveModal({ isOpen, onClose, onImportDoc }: GoogleDriveMo
 
         {/* TAB 1: Direct Google Drive Access */}
         {activeTab === 'direct' && (
-          <div className="flex-1 overflow-y-auto space-y-4 pr-1">
+          <div className="flex-1 overflow-y-auto space-y-4 pr-1 flex flex-col min-h-0">
             {!accessToken ? (
               <div className="space-y-4 py-2">
                 <div className="p-5 rounded-2xl bg-zinc-950/60 border border-zinc-800 text-center space-y-3">
@@ -187,18 +197,19 @@ export function GoogleDriveModal({ isOpen, onClose, onImportDoc }: GoogleDriveMo
                 </div>
               </div>
             ) : (
-              /* Signed in: List of real Google Drive Files */
-              <div className="space-y-3">
-                <div className="flex items-center justify-between p-3 rounded-2xl bg-zinc-950 border border-zinc-800 text-xs">
+              /* Signed in: List of real Google Drive Files with Search */
+              <div className="space-y-3 flex-1 flex flex-col min-h-0">
+                {/* Account info bar */}
+                <div className="flex items-center justify-between p-3 rounded-2xl bg-zinc-950 border border-zinc-800 text-xs shrink-0">
                   <div className="flex items-center gap-2 truncate">
                     <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
                     <span className="truncate text-zinc-300 font-medium">{userEmail || 'Google Аккаунт'}</span>
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
                     <button
-                      onClick={refreshFiles}
+                      onClick={() => refreshFiles(searchFilter)}
                       className="p-1.5 rounded-lg text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800"
-                      title="Обновить список"
+                      title="Обновить список файлов с Google Диска"
                     >
                       <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin text-amber-400' : ''}`} />
                     </button>
@@ -212,22 +223,61 @@ export function GoogleDriveModal({ isOpen, onClose, onImportDoc }: GoogleDriveMo
                   </div>
                 </div>
 
-                <div className="text-xs uppercase tracking-wider font-bold text-zinc-500 px-1">
-                  Ваши документы Google Docs:
+                {/* 🔍 Search Input Bar */}
+                <div className="relative shrink-0">
+                  <Search className="w-4 h-4 text-zinc-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                  <input
+                    type="text"
+                    value={searchFilter}
+                    onChange={(e) => setSearchFilter(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        refreshFiles(searchFilter);
+                      }
+                    }}
+                    placeholder="Поиск по названию проповеди или темы..."
+                    className="w-full bg-zinc-950/80 border border-zinc-800 focus:border-amber-500/60 rounded-2xl pl-10 pr-10 py-2.5 text-xs sm:text-sm text-zinc-100 placeholder-zinc-500 focus:outline-none transition-all"
+                  />
+                  {searchFilter && (
+                    <button
+                      onClick={() => {
+                        setSearchFilter('');
+                        refreshFiles('');
+                      }}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 p-1 rounded-lg text-zinc-500 hover:text-zinc-200"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  )}
                 </div>
 
-                {isLoading && files.length === 0 ? (
-                  <div className="py-8 text-center text-xs text-zinc-500 flex flex-col items-center gap-2">
-                    <RefreshCw className="w-5 h-5 animate-spin text-amber-400" />
-                    <span>Загрузка файлов с вашего Google Диска...</span>
-                  </div>
-                ) : files.length === 0 ? (
-                  <div className="py-8 text-center text-xs text-zinc-500">
-                    На вашем Google Диске пока нет файлов Google Docs.
-                  </div>
-                ) : (
-                  <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
-                    {files.map((file) => (
+                {/* Counter & Label */}
+                <div className="flex items-center justify-between text-[11px] uppercase tracking-wider font-bold text-zinc-500 px-1 shrink-0">
+                  <span>Документы Google Диска</span>
+                  <span>{filteredFiles.length} из {files.length}</span>
+                </div>
+
+                {/* Files List */}
+                <div className="flex-1 overflow-y-auto space-y-2 min-h-[220px] max-h-[340px] pr-1">
+                  {isLoading && files.length === 0 ? (
+                    <div className="py-12 text-center text-xs text-zinc-500 flex flex-col items-center gap-2">
+                      <RefreshCw className="w-5 h-5 animate-spin text-amber-400" />
+                      <span>Ищем все файлы на вашем Google Диске...</span>
+                    </div>
+                  ) : filteredFiles.length === 0 ? (
+                    <div className="py-12 text-center text-xs text-zinc-500 space-y-2">
+                      <p>Файлов по запросу «{searchFilter}» не найдено.</p>
+                      {searchFilter && (
+                        <button
+                          onClick={() => refreshFiles(searchFilter)}
+                          className="text-amber-400 hover:underline text-xs"
+                        >
+                          Искать глубже на всем Google Диске ↵
+                        </button>
+                      )}
+                    </div>
+                  ) : (
+                    filteredFiles.map((file) => (
                       <button
                         key={file.id}
                         onClick={() => handleSelectDriveFile(file.id)}
@@ -239,10 +289,16 @@ export function GoogleDriveModal({ isOpen, onClose, onImportDoc }: GoogleDriveMo
                         }`}
                       >
                         <div className="flex items-center gap-3 truncate">
-                          <FileText className="w-5 h-5 text-amber-400 shrink-0" />
+                          <div className="p-2 rounded-xl bg-amber-500/10 text-amber-400 shrink-0">
+                            {file.mimeType?.includes('document') ? (
+                              <FileText className="w-4 h-4" />
+                            ) : (
+                              <FileCode className="w-4 h-4" />
+                            )}
+                          </div>
                           <div className="truncate">
-                            <div className="text-sm font-semibold truncate">{file.name}</div>
-                            <div className="text-[11px] text-zinc-500 flex items-center gap-1 mt-0.5">
+                            <div className="text-sm font-semibold truncate text-zinc-100">{file.name}</div>
+                            <div className="text-[11px] text-zinc-500 flex items-center gap-1.5 mt-0.5">
                               <Clock className="w-3 h-3" />
                               <span>{new Date(file.modifiedTime).toLocaleDateString('ru-RU')}</span>
                             </div>
@@ -250,15 +306,15 @@ export function GoogleDriveModal({ isOpen, onClose, onImportDoc }: GoogleDriveMo
                         </div>
                         <ArrowRight className="w-4 h-4 opacity-50 shrink-0 ml-2 group-hover:translate-x-0.5 transition-transform" />
                       </button>
-                    ))}
-                  </div>
-                )}
+                    ))
+                  )}
+                </div>
               </div>
             )}
 
             {/* Error Message */}
             {error && (
-              <div className="p-3.5 rounded-2xl bg-red-950/40 border border-red-500/40 text-red-200 text-xs space-y-1">
+              <div className="p-3.5 rounded-2xl bg-red-950/40 border border-red-500/40 text-red-200 text-xs space-y-1 shrink-0">
                 <div className="flex items-center gap-1.5 font-bold text-red-400">
                   <AlertCircle className="w-4 h-4" />
                   <span>Ошибка</span>
