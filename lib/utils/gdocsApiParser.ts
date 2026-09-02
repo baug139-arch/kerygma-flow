@@ -1,4 +1,4 @@
-import { decodeHtmlEntities } from './htmlDecoder';
+import { decodeHtmlEntities, cleanDocumentArtifacts } from './htmlDecoder';
 
 export interface GDocTab {
   id: string;
@@ -9,7 +9,7 @@ export interface GDocTab {
 
 // Clean helper to remove redundant markdown asterisks from heading strings
 export function cleanHeadingText(text: string): string {
-  return text
+  return cleanDocumentArtifacts(text)
     .replace(/^[*#_\s]+|[*#_\s]+$/g, '')
     .trim();
 }
@@ -62,7 +62,8 @@ export function convertDocsApiBodyToMarkdown(elements: any[]): string {
         }
       }
 
-      const trimmedP = pText.trim();
+      const rawP = pText.trim();
+      const trimmedP = cleanDocumentArtifacts(rawP);
       if (!trimmedP) {
         continue;
       }

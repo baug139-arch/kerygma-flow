@@ -1,3 +1,23 @@
+// Robust cleaner for invisible control characters, box glyphs (🖿 \u{1F5BF}), and formatting artifacts
+export function cleanDocumentArtifacts(text: string): string {
+  if (!text) return '';
+
+  return text
+    // Replace non-breaking spaces with standard space
+    .replace(/\u00A0/g, ' ')
+    .replace(/[\u2000-\u200A\u202F\u205F]/g, ' ')
+    // Remove zero-width spaces, soft hyphens, byte order marks
+    .replace(/[\u200B-\u200D\uFEFF\u00AD]/g, '')
+    // Remove vertical tabs, form feeds, bell, and unprintable ascii control chars
+    .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, ' ')
+    // Remove strange unicode doc box / folder / media glyphs (e.g. 🖿 \u{1F5BF}, ⎕ \u2395, ▯ \u25AF, etc.)
+    .replace(/[\u{1F5A0}-\u{1F5FF}]/gu, ' ')
+    .replace(/\uFFFD/g, '')
+    .replace(/[\u2395\u25A1\u25AF\u25AD\u25A0\u2022\u25E6]/g, (match) => (match === '•' ? '•' : ' '))
+    // Clean multiple consecutive spaces
+    .replace(/[ \t]{2,}/g, ' ');
+}
+
 export function decodeHtmlEntities(text: string): string {
   if (!text) return '';
 
@@ -62,7 +82,7 @@ export function decodeHtmlEntities(text: string): string {
       });
   }
 
-  return decoded;
+  return cleanDocumentArtifacts(decoded);
 }
 
 export function convertGoogleDocHtmlToMarkdown(html: string): string {
@@ -103,7 +123,9 @@ export function convertGoogleDocHtmlToMarkdown(html: string): string {
   // Decode HTML character entities to real unicode characters
   body = decodeHtmlEntities(body);
 
-  // Clean extra whitespace and blank lines
+  // Clean document artifacts and extra whitespace
+  body = cleanDocumentArtifacts(body);
+
   body = body.replace(/\r\n/g, '\n');
   body = body.replace(/[ \t]+\n/g, '\n');
   body = body.replace(/\n{3,}/g, '\n\n').trim();

@@ -4,6 +4,7 @@ import React from 'react';
 import { BookOpen, Sparkles, Quote, Bookmark, Megaphone, Compass, Flag } from 'lucide-react';
 import { ThemeMode } from '@/lib/types';
 import { parseBibleReferences, getVerseData } from '@/lib/bible/parser';
+import { cleanDocumentArtifacts } from '@/lib/utils/htmlDecoder';
 
 interface TeleprompterProps {
   content: string;
@@ -133,7 +134,8 @@ export function Teleprompter({
     rawLines?: string[];
   }> = [];
 
-  const rawLines = content.split('\n');
+  const cleanedContent = cleanDocumentArtifacts(content);
+  const rawLines = cleanedContent.split('\n');
   let i = 0;
 
   while (i < rawLines.length) {
@@ -310,13 +312,13 @@ export function Teleprompter({
   return (
     <div
       ref={containerRef}
-      className={`w-full h-full overflow-y-auto px-6 sm:px-16 lg:px-28 py-10 select-text transition-colors duration-200 ${themeStyles.bg}`}
+      className={`w-full h-full overflow-y-auto px-6 sm:px-16 lg:px-28 pt-24 sm:pt-28 pb-96 select-text transition-colors duration-200 ${themeStyles.bg}`}
       style={{
         fontSize: `${fontSize}px`,
         lineHeight: 1.8,
       }}
     >
-      <div className="max-w-4xl mx-auto space-y-6 pb-64">
+      <div className="max-w-4xl mx-auto space-y-6">
         {blocks.map((block, idx) => {
           switch (block.type) {
             case 'h1':
