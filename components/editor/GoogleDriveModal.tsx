@@ -21,10 +21,12 @@ import {
   Square,
   ArrowLeft,
   ListTree,
+  FolderOpen,
 } from 'lucide-react';
 import { Sermon } from '@/lib/types';
-import { useGoogleDrive } from '@/lib/google/useGoogleDrive';
+import { useGoogleDrive, DocumentImportResult } from '@/lib/google/useGoogleDrive';
 import { parseDocumentSections, ParsedDocSection } from '@/lib/utils/sectionParser';
+import { GDocTab } from '@/lib/utils/gdocsApiParser';
 
 interface GoogleDriveModalProps {
   isOpen: boolean;
@@ -36,6 +38,8 @@ interface PendingDoc {
   fileId: string;
   title: string;
   fullContent: string;
+  tabs?: GDocTab[];
+  selectedTabId?: string;
   sections: ParsedDocSection[];
 }
 
@@ -44,7 +48,7 @@ export function GoogleDriveModal({ isOpen, onClose, onImportDoc }: GoogleDriveMo
   const [selectedDocId, setSelectedDocId] = useState<string | null>(null);
   const [searchFilter, setSearchFilter] = useState('');
 
-  // Multi-section selection state
+  // Multi-section & Tabs selection state
   const [pendingDoc, setPendingDoc] = useState<PendingDoc | null>(null);
   const [selectedSectionIds, setSelectedSectionIds] = useState<string[]>([]);
 
@@ -74,25 +78,29 @@ export function GoogleDriveModal({ isOpen, onClose, onImportDoc }: GoogleDriveMo
 
   if (!isOpen) return null;
 
-  const processLoadedDocument = (fileId: string, title: string, content: string) => {
-    const sections = parseDocumentSections(content);
+  const processLoadedDocument = (fileId: string, docResult: DocumentImportResult) => {
+    const hasTabs = docResult.tabs && docResult.tabs.length > 1;
 
-    // If document has multiple sections, offer section choice
-    if (sections.length > 1) {
+    // If multiple tabs, initialize with the first tab or full content
+    const initialContent = hasTabs && docResult.tabs ? docResult.tabs[0].content : docResult.content;
+    const sections = parseDocumentSections(initialContent);
+
+    if (hasTabs || sections.length > 1) {
       setPendingDoc({
         fileId,
-        title,
-        fullContent: content,
+        title: docResult.title,
+        fullContent: docResult.content,
+        tabs: docResult.tabs,
+        selectedTabId: hasTabs && docResult.tabs ? docResult.tabs[0].id : undefined,
         sections,
       });
-      // By default select all sections
       setSelectedSectionIds(sections.map((s) => s.id));
     } else {
-      // 1 section: import directly
+      // Single tab and single section: import directly
       onImportDoc({
-        title,
-        content,
-        targetDurationMinutes: Math.max(10, Math.round(content.split(/\s+/).filter(Boolean).length / 115)),
+        title: docResult.title,
+        content: docResult.content,
+        targetDurationMinutes: Math.max(10, Math.round(docResult.content.split(/\s+/).filter(Boolean).length / 115)),
         syncedFromGoogle: true,
         googleDocId: fileId,
       });
@@ -100,12 +108,40 @@ export function GoogleDriveModal({ isOpen, onClose, onImportDoc }: GoogleDriveMo
     }
   };
 
+  // Switch between Document Tabs (e.g. "Проповедь" vs "Греческий текст")
+  const handleSelectDocumentTab = (tabId: string) => {
+    if (!pendingDoc || !pendingDoc.tabs) return;
+
+    if (tabId === 'ALL') {
+      const fullContent = pendingDoc.tabs.map((t) => `# ${t.title}\n\n${t.content}`).join('\n\n---\n\n');
+      const sections = parseDocumentSections(fullContent);
+      setPendingDoc({
+        ...pendingDoc,
+        selectedTabId: 'ALL',
+        sections,
+      });
+      setSelectedSectionIds(sections.map((s) => s.id));
+      return;
+    }
+
+    const foundTab = pendingDoc.tabs.find((t) => t.id === tabId);
+    if (foundTab) {
+      const sections = parseDocumentSections(foundTab.content);
+      setPendingDoc({
+        ...pendingDoc,
+        selectedTabId: tabId,
+        sections,
+      });
+      setSelectedSectionIds(sections.map((s) => s.id));
+    }
+  };
+
   // Handle direct file import from Google Drive
   const handleSelectDriveFile = async (fileId: string) => {
     setSelectedDocId(fileId);
     try {
-      const doc = await getDocumentContent(fileId);
-      processLoadedDocument(fileId, doc.title, doc.content);
+      const docResult = await getDocumentContent(fileId);
+      processLoadedDocument(fileId, docResult);
     } catch (err: any) {
       // Handled in hook
     } finally {
@@ -138,7 +174,10 @@ export function GoogleDriveModal({ isOpen, onClose, onImportDoc }: GoogleDriveMo
         return;
       }
 
-      processLoadedDocument(data.docId || `url-${Date.now()}`, data.title, data.content);
+      processLoadedDocument(data.docId || `url-${Date.now()}`, {
+        title: data.title,
+        content: data.content,
+      });
       setIsUrlLoading(false);
     } catch (err: any) {
       setUrlError(err.message || 'Сетевая ошибка при подключении к Google Docs');
@@ -146,17 +185,23 @@ export function GoogleDriveModal({ isOpen, onClose, onImportDoc }: GoogleDriveMo
     }
   };
 
-  // Confirm section selection import
+  // Confirm section / tab selection import
   const handleConfirmSectionImport = () => {
     if (!pendingDoc) return;
     const chosen = pendingDoc.sections.filter((s) => selectedSectionIds.includes(s.id));
     if (chosen.length === 0) return;
 
     const combinedContent = chosen.map((s) => s.content).join('\n\n');
-    const title =
-      chosen.length === 1
-        ? `${chosen[0].title}`
-        : `${pendingDoc.title} (${chosen.length} разд.)`;
+
+    let title = pendingDoc.title;
+    if (pendingDoc.tabs && pendingDoc.selectedTabId && pendingDoc.selectedTabId !== 'ALL') {
+      const tabName = pendingDoc.tabs.find((t) => t.id === pendingDoc.selectedTabId)?.title;
+      if (tabName) {
+        title = `${pendingDoc.title}: ${tabName}`;
+      }
+    } else if (chosen.length === 1) {
+      title = `${chosen[0].title}`;
+    }
 
     onImportDoc({
       title,
@@ -198,10 +243,12 @@ export function GoogleDriveModal({ isOpen, onClose, onImportDoc }: GoogleDriveMo
             </div>
             <div>
               <h3 className="text-lg font-bold">
-                {pendingDoc ? 'Выбор разделов для проповеди' : 'Google Документы'}
+                {pendingDoc ? 'Выбор вкладки и разделов' : 'Google Документы'}
               </h3>
               <p className="text-xs text-zinc-400">
-                {pendingDoc
+                {pendingDoc?.tabs && pendingDoc.tabs.length > 1
+                  ? `В документе найдено ${pendingDoc.tabs.length} вкладок (выберите нужную)`
+                  : pendingDoc
                   ? `В документе обнаружено ${pendingDoc.sections.length} разделов`
                   : 'Прямой доступ к вашим файлам конспектов'}
               </p>
@@ -218,25 +265,68 @@ export function GoogleDriveModal({ isOpen, onClose, onImportDoc }: GoogleDriveMo
           </button>
         </div>
 
-        {/* STEP 2: Section Choice Screen */}
+        {/* STEP 2: Document Tabs & Section Choice Screen */}
         {pendingDoc ? (
           <div className="flex-1 overflow-y-auto space-y-4 pr-1 flex flex-col min-h-0">
-            <div className="p-3.5 rounded-2xl bg-zinc-950 border border-zinc-800 space-y-2 shrink-0">
-              <div className="text-xs text-zinc-400">Выбранный документ:</div>
+            {/* Document Info */}
+            <div className="p-3.5 rounded-2xl bg-zinc-950 border border-zinc-800 space-y-1.5 shrink-0">
+              <div className="text-xs text-zinc-400">Документ Google Docs:</div>
               <div className="text-sm font-bold text-amber-300 truncate">{pendingDoc.title}</div>
             </div>
 
+            {/* 📑 Document Tabs Selector (e.g. "Проповедь" vs "Греческий текст") */}
+            {pendingDoc.tabs && pendingDoc.tabs.length > 1 && (
+              <div className="space-y-2 shrink-0">
+                <div className="text-xs font-semibold text-zinc-300 flex items-center gap-1.5">
+                  <Layers className="w-4 h-4 text-amber-400" />
+                  <span>Вкладки в документе (выберите одну):</span>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {pendingDoc.tabs.map((tab) => {
+                    const isTabActive = pendingDoc.selectedTabId === tab.id;
+                    return (
+                      <button
+                        key={tab.id}
+                        type="button"
+                        onClick={() => handleSelectDocumentTab(tab.id)}
+                        className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all ${
+                          isTabActive
+                            ? 'bg-amber-500 text-black shadow-md scale-102'
+                            : 'bg-zinc-950 border border-zinc-800 hover:border-zinc-700 text-zinc-300'
+                        }`}
+                      >
+                        <FileText className="w-3.5 h-3.5" />
+                        <span>{tab.title}</span>
+                        <span className="opacity-70 font-mono text-[10px]">({tab.wordCount} сл.)</span>
+                      </button>
+                    );
+                  })}
+                  <button
+                    type="button"
+                    onClick={() => handleSelectDocumentTab('ALL')}
+                    className={`px-3 py-2 rounded-xl text-xs font-semibold transition-all ${
+                      pendingDoc.selectedTabId === 'ALL'
+                        ? 'bg-amber-500 text-black shadow-md'
+                        : 'bg-zinc-950 border border-zinc-800 text-zinc-400 hover:text-zinc-200'
+                    }`}
+                  >
+                    Все вкладки
+                  </button>
+                </div>
+              </div>
+            )}
+
             {/* Quick Actions (Select All / Single) */}
-            <div className="flex items-center justify-between gap-2 shrink-0">
+            <div className="flex items-center justify-between gap-2 shrink-0 pt-1">
               <span className="text-xs text-zinc-400">
-                Выбрано: <b className="text-zinc-200">{selectedSectionIds.length}</b> из {pendingDoc.sections.length}
+                Разделы для суфлёра: <b className="text-zinc-200">{selectedSectionIds.length}</b> из {pendingDoc.sections.length}
               </span>
               <div className="flex items-center gap-2">
                 <button
                   onClick={selectAllSections}
                   className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-zinc-800 hover:bg-zinc-700 text-zinc-200"
                 >
-                  Выбрать все
+                  Все разделы
                 </button>
                 <button
                   onClick={() => setSelectedSectionIds([])}
@@ -247,15 +337,15 @@ export function GoogleDriveModal({ isOpen, onClose, onImportDoc }: GoogleDriveMo
               </div>
             </div>
 
-            {/* List of Sections */}
-            <div className="flex-1 overflow-y-auto space-y-2 min-h-[220px] max-h-[300px] pr-1">
+            {/* List of Sections inside the active tab */}
+            <div className="flex-1 overflow-y-auto space-y-2 min-h-[160px] max-h-[260px] pr-1">
               {pendingDoc.sections.map((section, idx) => {
                 const isSelected = selectedSectionIds.includes(section.id);
                 return (
                   <div
                     key={section.id}
                     onClick={() => toggleSectionId(section.id)}
-                    className={`p-3.5 rounded-2xl border transition-all cursor-pointer flex items-start gap-3 ${
+                    className={`p-3 rounded-2xl border transition-all cursor-pointer flex items-start gap-3 ${
                       isSelected
                         ? 'bg-amber-500/10 border-amber-500/50 text-zinc-100'
                         : 'bg-zinc-950/60 border-zinc-800/80 hover:border-zinc-700 text-zinc-400'
@@ -270,23 +360,23 @@ export function GoogleDriveModal({ isOpen, onClose, onImportDoc }: GoogleDriveMo
                       className="mt-0.5 text-amber-400 shrink-0"
                     >
                       {isSelected ? (
-                        <CheckSquare className="w-5 h-5 fill-amber-500/20" />
+                        <CheckSquare className="w-4 h-4 fill-amber-500/20" />
                       ) : (
-                        <Square className="w-5 h-5 text-zinc-600" />
+                        <Square className="w-4 h-4 text-zinc-600" />
                       )}
                     </button>
 
                     <div className="flex-1 min-w-0 space-y-1">
                       <div className="flex items-center justify-between gap-2">
-                        <div className="font-semibold text-sm truncate text-zinc-200">
+                        <div className="font-semibold text-xs sm:text-sm truncate text-zinc-200">
                           <span className="opacity-60 mr-1.5 font-mono text-xs">{idx + 1}.</span>
                           <span>{section.title}</span>
                         </div>
-                        <span className="text-[11px] text-zinc-500 font-mono shrink-0">
+                        <span className="text-[10px] text-zinc-500 font-mono shrink-0">
                           ~{section.wordCount} сл.
                         </span>
                       </div>
-                      <p className="text-xs text-zinc-500 line-clamp-1">
+                      <p className="text-[11px] text-zinc-500 line-clamp-1">
                         {section.content.replace(/[#*`_>]/g, '').trim()}
                       </p>
                     </div>
@@ -314,7 +404,7 @@ export function GoogleDriveModal({ isOpen, onClose, onImportDoc }: GoogleDriveMo
                 className="flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl text-xs font-semibold bg-zinc-800 hover:bg-zinc-700 text-zinc-300"
               >
                 <ArrowLeft className="w-4 h-4" />
-                <span>Назад к файлам</span>
+                <span>Назад</span>
               </button>
 
               <button
@@ -324,7 +414,10 @@ export function GoogleDriveModal({ isOpen, onClose, onImportDoc }: GoogleDriveMo
               >
                 <Sparkles className="w-4 h-4" />
                 <span>
-                  Импортировать {selectedSectionIds.length === pendingDoc.sections.length ? 'весь документ' : `выбранное (${selectedSectionIds.length})`}
+                  Импортировать{' '}
+                  {pendingDoc.tabs && pendingDoc.selectedTabId && pendingDoc.selectedTabId !== 'ALL'
+                    ? `вкладку «${pendingDoc.tabs.find((t) => t.id === pendingDoc.selectedTabId)?.title}»`
+                    : `выбранное (${selectedSectionIds.length})`}
                 </span>
               </button>
             </div>

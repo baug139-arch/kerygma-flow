@@ -10,6 +10,7 @@ import {
   User,
 } from 'firebase/auth';
 import { convertGoogleDocHtmlToMarkdown, decodeHtmlEntities } from '@/lib/utils/htmlDecoder';
+import { extractTabsFromDocsApiResponse, GDocTab } from '@/lib/utils/gdocsApiParser';
 
 export interface GoogleDriveFile {
   id: string;
@@ -17,6 +18,12 @@ export interface GoogleDriveFile {
   modifiedTime: string;
   mimeType?: string;
   size?: string;
+}
+
+export interface DocumentImportResult {
+  title: string;
+  content: string;
+  tabs?: GDocTab[];
 }
 
 export function useGoogleDrive() {
@@ -55,7 +62,6 @@ export function useGoogleDrive() {
     setError(null);
 
     try {
-      // Broad query for Google Docs, Word Docs, and text files that are not in trash
       let q = "(mimeType = 'application/vnd.google-apps.document' or mimeType = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' or mimeType = 'text/plain' or mimeType = 'text/markdown') and trashed = false";
 
       if (searchKeyword.trim()) {
@@ -150,8 +156,8 @@ export function useGoogleDrive() {
     }
   };
 
-  // Download Google Doc / file and convert to clean sermon format
-  const getDocumentContent = async (fileId: string): Promise<{ title: string; content: string }> => {
+  // Download Google Doc / file and convert to clean sermon format with Document Tabs support
+  const getDocumentContent = async (fileId: string): Promise<DocumentImportResult> => {
     if (!accessToken) throw new Error('Требуется авторизация в Google');
 
     setIsLoading(true);
@@ -160,10 +166,34 @@ export function useGoogleDrive() {
       const mimeType = fileMeta?.mimeType || 'application/vnd.google-apps.document';
       const title = fileMeta?.name || 'Проповедь из Google Docs';
 
-      let markdown = '';
-
       if (mimeType === 'application/vnd.google-apps.document') {
-        // Native Google Docs: export to HTML and parse
+        // 1. Try Google Docs API v1 first with tabs content support
+        try {
+          const docsApiUrl = `https://docs.googleapis.com/v1/documents/${fileId}?includeTabsContent=true`;
+          const docsRes = await fetch(docsApiUrl, {
+            headers: {
+              Authorization: `Bearer ${accessToken}`,
+            },
+          });
+
+          if (docsRes.ok) {
+            const docJson = await docsRes.json();
+            const tabs = extractTabsFromDocsApiResponse(docJson);
+
+            if (tabs && tabs.length > 0) {
+              const fullContent = tabs.map((t) => `# ${t.title}\n\n${t.content}`).join('\n\n---\n\n');
+              return {
+                title: docJson.title || title,
+                content: fullContent,
+                tabs,
+              };
+            }
+          }
+        } catch (e) {
+          console.warn('Docs API v1 tabs fetch fallback to export:', e);
+        }
+
+        // 2. Fallback: Drive export to HTML
         const exportUrl = `https://www.googleapis.com/drive/v3/files/${fileId}/export?mimeType=text/html`;
         const res = await fetch(exportUrl, {
           headers: {
@@ -176,7 +206,12 @@ export function useGoogleDrive() {
         }
 
         const html = await res.text();
-        markdown = convertGoogleDocHtmlToMarkdown(html);
+        const markdown = convertGoogleDocHtmlToMarkdown(html);
+
+        return {
+          title,
+          content: markdown,
+        };
       } else {
         // Text / plain / docx / other: fetch direct content
         const fetchUrl = `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`;
@@ -186,6 +221,7 @@ export function useGoogleDrive() {
           },
         });
 
+        let markdown = '';
         if (!res.ok) {
           // Fallback export to text/plain
           const exportUrl = `https://www.googleapis.com/drive/v3/files/${fileId}/export?mimeType=text/plain`;
@@ -204,12 +240,12 @@ export function useGoogleDrive() {
           const rawText = await res.text();
           markdown = decodeHtmlEntities(rawText);
         }
-      }
 
-      return {
-        title,
-        content: markdown,
-      };
+        return {
+          title,
+          content: markdown,
+        };
+      }
     } finally {
       setIsLoading(false);
     }
