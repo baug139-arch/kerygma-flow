@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { BookOpen, Sparkles, Quote, Bookmark, Megaphone, Compass, Flag } from 'lucide-react';
 import { ThemeMode } from '@/lib/types';
 import { parseBibleReferences, getVerseData } from '@/lib/bible/parser';
@@ -354,6 +354,116 @@ export function Teleprompter({
     i++;
   }
 
+  const [highlightedIndex, setHighlightedIndex] = useState<number | null>(null);
+  const prevSummaryModeRef = useRef<boolean>(isSummaryMode);
+  const currentEyeBlockIndexRef = useRef<number>(0);
+
+  // Continuously track the block index closest to the reading eye line (top ~28%)
+  const updateEyeLevelBlock = useCallback(() => {
+    if (!containerRef.current) return;
+    const container = containerRef.current;
+    const containerRect = container.getBoundingClientRect();
+    const eyeY = containerRect.top + container.clientHeight * 0.28;
+
+    const elements = container.querySelectorAll<HTMLElement>('[data-block-idx]');
+    let closestIdx: number = 0;
+    let minDiff = Infinity;
+
+    for (let k = 0; k < elements.length; k++) {
+      const el = elements[k];
+      const rect = el.getBoundingClientRect();
+      const diff = Math.abs(rect.top - eyeY);
+      if (diff < minDiff) {
+        minDiff = diff;
+        const rawIdx = el.getAttribute('data-block-idx');
+        if (rawIdx !== null) {
+          closestIdx = parseInt(rawIdx, 10);
+        }
+      }
+    }
+    currentEyeBlockIndexRef.current = closestIdx;
+  }, [containerRef]);
+
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    container.addEventListener('scroll', updateEyeLevelBlock, { passive: true });
+    updateEyeLevelBlock();
+    return () => {
+      container.removeEventListener('scroll', updateEyeLevelBlock);
+    };
+  }, [containerRef, updateEyeLevelBlock]);
+
+  // When isSummaryMode changes, smoothly align to the corresponding active block at eye level
+  useEffect(() => {
+    if (prevSummaryModeRef.current === isSummaryMode) return;
+    prevSummaryModeRef.current = isSummaryMode;
+
+    const activeIdx = currentEyeBlockIndexRef.current;
+
+    // Find the target block in displayedBlocks
+    let targetBlock: (typeof blocks)[0] | undefined;
+
+    if (isSummaryMode) {
+      // In summary mode, find the nearest preceding heading/scripture
+      const summaryBlocks = blocks.filter(
+        (b) =>
+          b.type === 'h1' ||
+          b.type === 'h2' ||
+          b.type === 'h3' ||
+          b.type === 'h4' ||
+          b.type === 'story' ||
+          b.type === 'scripture'
+      );
+      const preceding = summaryBlocks.filter((b) => b.index <= activeIdx);
+      if (preceding.length > 0) {
+        targetBlock = preceding[preceding.length - 1];
+      } else if (summaryBlocks.length > 0) {
+        targetBlock = summaryBlocks[0];
+      }
+    } else {
+      // In full mode, find exact block or nearest preceding
+      targetBlock = blocks.find((b) => b.index === activeIdx) || blocks.find((b) => b.index >= activeIdx) || blocks[0];
+    }
+
+    if (!targetBlock) return;
+    const targetIdx = targetBlock.index;
+
+    const timeoutId = setTimeout(() => {
+      if (!containerRef.current) return;
+      const targetEl = containerRef.current.querySelector<HTMLElement>(`[data-block-idx="${targetIdx}"]`);
+      if (targetEl) {
+        const container = containerRef.current;
+        const eyeOffset = container.clientHeight * 0.28;
+        const targetScroll = Math.max(0, targetEl.offsetTop - eyeOffset);
+
+        container.scrollTo({
+          top: targetScroll,
+          behavior: 'smooth',
+        });
+
+        setHighlightedIndex(targetIdx);
+        setTimeout(() => {
+          setHighlightedIndex(null);
+        }, 1800);
+      }
+    }, 50);
+
+    return () => clearTimeout(timeoutId);
+  }, [isSummaryMode, blocks, containerRef]);
+
+  const getHighlightClass = (index: number) => {
+    if (highlightedIndex !== index) return 'transition-all duration-700';
+    if (theme === 'sepia') {
+      return 'ring-2 ring-[#8c5218] shadow-[0_0_25px_rgba(140,82,24,0.35)] rounded-2xl transition-all duration-500 bg-[#8c5218]/10 p-2 -m-2';
+    }
+    if (theme === 'light') {
+      return 'ring-2 ring-amber-500 shadow-[0_0_25px_rgba(245,158,11,0.3)] rounded-2xl transition-all duration-500 bg-amber-500/10 p-2 -m-2';
+    }
+    return 'ring-2 ring-amber-400 shadow-[0_0_30px_rgba(251,191,36,0.4)] rounded-2xl transition-all duration-500 bg-amber-400/10 p-2 -m-2';
+  };
+
   const displayedBlocks = isSummaryMode
     ? blocks.filter(
         (b) =>
@@ -382,8 +492,9 @@ export function Teleprompter({
               return (
                 <h1
                   id={`heading-${block.index}`}
+                  data-block-idx={block.index}
                   key={idx}
-                  className={`text-3xl sm:text-4xl lg:text-5xl pt-4 ${themeStyles.h1}`}
+                  className={`text-3xl sm:text-4xl lg:text-5xl pt-4 ${themeStyles.h1} ${getHighlightClass(block.index)}`}
                 >
                   {block.content}
                 </h1>
@@ -393,8 +504,9 @@ export function Teleprompter({
               return (
                 <div
                   id={`heading-${block.index}`}
+                  data-block-idx={block.index}
                   key={idx}
-                  className={themeStyles.introCard}
+                  className={`${themeStyles.introCard} ${getHighlightClass(block.index)}`}
                 >
                   <div className={themeStyles.introBadge}>
                     <Compass className="w-4 h-4 shrink-0 animate-pulse text-emerald-400" />
@@ -410,8 +522,9 @@ export function Teleprompter({
               return (
                 <div
                   id={`heading-${block.index}`}
+                  data-block-idx={block.index}
                   key={idx}
-                  className={themeStyles.conclusionCard}
+                  className={`${themeStyles.conclusionCard} ${getHighlightClass(block.index)}`}
                 >
                   <div className={themeStyles.conclusionBadge}>
                     <Flag className="w-4 h-4 shrink-0 fill-current text-amber-400" />
@@ -427,8 +540,9 @@ export function Teleprompter({
               return (
                 <h2
                   id={`heading-${block.index}`}
+                  data-block-idx={block.index}
                   key={idx}
-                  className={`text-2xl sm:text-3xl ${themeStyles.h2}`}
+                  className={`text-2xl sm:text-3xl ${themeStyles.h2} ${getHighlightClass(block.index)}`}
                 >
                   {block.content}
                 </h2>
@@ -436,21 +550,54 @@ export function Teleprompter({
 
             case 'h3':
               return (
-                <h3 key={idx} className={`text-xl sm:text-2xl ${themeStyles.h3}`}>
+                <h3
+                  id={`heading-${block.index}`}
+                  data-block-idx={block.index}
+                  key={idx}
+                  className={`text-xl sm:text-2xl ${themeStyles.h3} ${getHighlightClass(block.index)}`}
+                >
                   {block.content}
                 </h3>
               );
 
             case 'h4':
               return (
-                <h4 key={idx} className={`text-lg sm:text-xl ${themeStyles.h4}`}>
+                <h4
+                  id={`heading-${block.index}`}
+                  data-block-idx={block.index}
+                  key={idx}
+                  className={`text-lg sm:text-xl ${themeStyles.h4} ${getHighlightClass(block.index)}`}
+                >
                   {renderInlineFormatted(block.content, themeStyles)}
                 </h4>
               );
 
+            case 'scripture':
+              return (
+                <div
+                  id={`block-${block.index}`}
+                  data-block-idx={block.index}
+                  key={idx}
+                  className={`${themeStyles.scriptureCard} ${getHighlightClass(block.index)}`}
+                >
+                  <div className={themeStyles.scriptureHeader}>
+                    <BookOpen className="w-5 h-5 shrink-0 text-amber-400" />
+                    <span>{block.header}</span>
+                  </div>
+                  <div className={themeStyles.scriptureText}>
+                    {renderInlineFormatted(block.content, themeStyles)}
+                  </div>
+                </div>
+              );
+
             case 'cue':
               return (
-                <div key={idx} className="my-3">
+                <div
+                  id={`block-${block.index}`}
+                  data-block-idx={block.index}
+                  key={idx}
+                  className={`my-3 ${getHighlightClass(block.index)}`}
+                >
                   <div className={themeStyles.cue}>
                     <Megaphone className="w-4 h-4 text-cyan-400 shrink-0" />
                     <span>{block.content}</span>
@@ -460,7 +607,12 @@ export function Teleprompter({
 
             case 'author-quote':
               return (
-                <div key={idx} className="my-5 p-5 sm:p-6 rounded-2xl bg-zinc-900/60 border-l-4 border-indigo-400 text-zinc-200 shadow-sm">
+                <div
+                  id={`block-${block.index}`}
+                  data-block-idx={block.index}
+                  key={idx}
+                  className={`my-5 p-5 sm:p-6 rounded-2xl bg-zinc-900/60 border-l-4 border-indigo-400 text-zinc-200 shadow-sm ${getHighlightClass(block.index)}`}
+                >
                   <div className="font-serif text-lg sm:text-xl italic leading-relaxed text-zinc-200">
                     {renderInlineFormatted(block.content, themeStyles)}
                   </div>
@@ -469,7 +621,12 @@ export function Teleprompter({
 
             case 'illustration':
               return (
-                <div key={idx} className="my-5 p-5 sm:p-6 rounded-2xl bg-purple-950/25 border-l-4 border-purple-400 border-y border-r border-purple-500/20 text-purple-100 shadow-md">
+                <div
+                  id={`block-${block.index}`}
+                  data-block-idx={block.index}
+                  key={idx}
+                  className={`my-5 p-5 sm:p-6 rounded-2xl bg-purple-950/25 border-l-4 border-purple-400 border-y border-r border-purple-500/20 text-purple-100 shadow-md ${getHighlightClass(block.index)}`}
+                >
                   <div className="font-sans text-lg sm:text-xl leading-relaxed text-zinc-100">
                     {renderInlineFormatted(block.content, themeStyles)}
                   </div>
@@ -478,7 +635,12 @@ export function Teleprompter({
 
             case 'story':
               return (
-                <div key={idx} className={themeStyles.story}>
+                <div
+                  id={`block-${block.index}`}
+                  data-block-idx={block.index}
+                  key={idx}
+                  className={`${themeStyles.story} ${getHighlightClass(block.index)}`}
+                >
                   <div className={themeStyles.storyText}>
                     {renderInlineFormatted(block.content, themeStyles)}
                   </div>
@@ -487,7 +649,12 @@ export function Teleprompter({
 
             case 'bullet':
               return (
-                <div key={idx} className="flex items-start gap-3 pl-4">
+                <div
+                  id={`block-${block.index}`}
+                  data-block-idx={block.index}
+                  key={idx}
+                  className={`flex items-start gap-3 pl-4 ${getHighlightClass(block.index)}`}
+                >
                   <span className={`text-2xl font-bold select-none ${themeStyles.bullet}`}>•</span>
                   <div className="flex-1">{renderInlineFormatted(block.content, themeStyles)}</div>
                 </div>
@@ -495,7 +662,12 @@ export function Teleprompter({
 
             case 'numbered':
               return (
-                <div key={idx} className="flex items-start gap-3 pl-4">
+                <div
+                  id={`block-${block.index}`}
+                  data-block-idx={block.index}
+                  key={idx}
+                  className={`flex items-start gap-3 pl-4 ${getHighlightClass(block.index)}`}
+                >
                   <span className={`font-mono font-bold select-none text-lg ${themeStyles.bullet}`}>
                     {block.header}.
                   </span>
@@ -506,7 +678,12 @@ export function Teleprompter({
             case 'paragraph':
             default:
               return (
-                <p key={idx} className="leading-relaxed font-sans">
+                <p
+                  id={`block-${block.index}`}
+                  data-block-idx={block.index}
+                  key={idx}
+                  className={`leading-relaxed font-sans ${getHighlightClass(block.index)}`}
+                >
                   {renderInlineFormatted(block.content, themeStyles)}
                 </p>
               );
