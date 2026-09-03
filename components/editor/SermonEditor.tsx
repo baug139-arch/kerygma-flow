@@ -443,37 +443,65 @@ export function SermonEditor({ sermon, onSave, onLaunchPulpit, onBack }: SermonE
     }
   }, [sermon, title, series, duration, onSave]);
 
-  // Find the top-level block element in the editor
+  // Helper to find top-level child of editor for a given node
+  const getTopLevelBlock = (node: Node | null): HTMLElement | null => {
+    if (!editorRef.current || !node) return null;
+    if (node === editorRef.current) return null;
+
+    let curr: Node | null = node;
+    while (curr && curr.parentElement && curr.parentElement !== editorRef.current) {
+      curr = curr.parentElement;
+    }
+
+    if (curr && curr.parentElement === editorRef.current) {
+      if (curr.nodeType === Node.TEXT_NODE) {
+        const p = document.createElement('p');
+        p.className = 'my-3 leading-relaxed text-zinc-200 text-lg';
+        p.textContent = curr.textContent;
+        editorRef.current.replaceChild(p, curr);
+        return p;
+      }
+      return curr as HTMLElement;
+    }
+    return null;
+  };
+
+  // Find single top-level block element (for enter handling and cursor placement)
   const getSelectedBlockElement = (): HTMLElement | null => {
     if (!editorRef.current) return null;
     const sel = window.getSelection();
     if (!sel || sel.rangeCount === 0) return null;
+    return getTopLevelBlock(sel.anchorNode);
+  };
 
-    let node: Node | null = sel.anchorNode;
-    if (!node) return null;
+  // Find all top-level block elements overlapping current selection
+  const getSelectedBlockElements = (): HTMLElement[] => {
+    if (!editorRef.current) return [];
+    const sel = window.getSelection();
+    if (!sel || sel.rangeCount === 0) return [];
 
-    if (node === editorRef.current) {
-      const firstChild = editorRef.current.firstElementChild as HTMLElement | null;
-      return firstChild || null;
+    const range = sel.getRangeAt(0);
+    const startBlock = getTopLevelBlock(range.startContainer);
+    const endBlock = getTopLevelBlock(range.endContainer);
+
+    const children = Array.from(editorRef.current.children) as HTMLElement[];
+    if (children.length === 0) return [];
+
+    if (!startBlock && !endBlock) {
+      return children.length > 0 ? [children[0]] : [];
     }
+    if (startBlock && !endBlock) return [startBlock];
+    if (!startBlock && endBlock) return [endBlock];
 
-    while (node && node.parentElement && node.parentElement !== editorRef.current) {
-      node = node.parentElement;
-    }
+    const startIndex = children.indexOf(startBlock!);
+    const endIndex = children.indexOf(endBlock!);
 
-    if (node && node.parentElement === editorRef.current) {
-      if (node.nodeType === Node.TEXT_NODE) {
-        // Wrap orphan text node into paragraph
-        const p = document.createElement('p');
-        p.className = 'my-3 leading-relaxed text-zinc-200 text-lg';
-        p.textContent = node.textContent;
-        editorRef.current.replaceChild(p, node);
-        return p;
-      }
-      return node as HTMLElement;
-    }
+    if (startIndex === -1 && endIndex === -1) return [children[0]];
+    if (startIndex === -1) return [endBlock!];
+    if (endIndex === -1) return [startBlock!];
 
-    return null;
+    const [first, last] = startIndex <= endIndex ? [startIndex, endIndex] : [endIndex, startIndex];
+    return children.slice(first, last + 1);
   };
 
   // Helper to extract clean text from any block
@@ -482,41 +510,10 @@ export function SermonEditor({ sermon, onSave, onLaunchPulpit, onBack }: SermonE
     return text.replace(/^[#*`_❝❞«»\s]+|[#*`_❝❞«»\s]+$/g, '').trim();
   };
 
-  // ================= PARAGRAPH-LEVEL BLOCK FORMAT TRANSFORMER =================
-  const applyBlockFormat = (type: 'h1' | 'h2' | 'h3' | 'h4' | 'quote' | 'story' | 'illustration' | 'cue' | 'ul' | 'ol' | 'p') => {
-    if (!editorRef.current) return;
-    editorRef.current.focus();
-    restoreSelection();
-
-    const currentBlock = getSelectedBlockElement();
-    if (!currentBlock || currentBlock === editorRef.current) return;
-
-    const cleanText = getCleanBlockText(currentBlock);
-    const currentTag = currentBlock.tagName.toLowerCase();
-    const currentBlockType = currentBlock.getAttribute('data-block');
-
-    // Toggle check: if already this type or 'p', revert to clean paragraph
-    const isAlreadyThisType =
-      (type === 'h1' && currentTag === 'h1') ||
-      (type === 'h2' && currentTag === 'h2') ||
-      (type === 'h3' && currentTag === 'h3') ||
-      (type === 'h4' && currentTag === 'h4') ||
-      (type === 'quote' && currentBlockType === 'author-quote') ||
-      (type === 'story' && currentBlockType === 'story') ||
-      (type === 'illustration' && currentBlockType === 'illustration') ||
-      (type === 'cue' && currentBlockType === 'cue') ||
-      (type === 'ul' && currentTag === 'ul') ||
-      (type === 'ol' && currentTag === 'ol') ||
-      type === 'p';
-
+  // Helper to instantiate a new block element
+  const createBlockElement = (type: string, cleanText: string): HTMLElement => {
     let newEl: HTMLElement;
-
-    if (isAlreadyThisType) {
-      // Revert to clean paragraph
-      newEl = document.createElement('p');
-      newEl.className = 'my-3 leading-relaxed text-zinc-200 text-lg';
-      newEl.textContent = cleanText;
-    } else if (type === 'h1') {
+    if (type === 'h1') {
       newEl = document.createElement('h1');
       newEl.className = 'text-3xl sm:text-4xl font-black text-amber-400 border-b border-zinc-800 pb-3 pt-4 my-4 tracking-tight';
       newEl.textContent = cleanText;
@@ -555,32 +552,110 @@ export function SermonEditor({ sermon, onSave, onLaunchPulpit, onBack }: SermonE
         <span class="opacity-70">📢 Ремарка:</span>
         <span>${escapeHtml(cleanText)}</span>
       `;
-    } else if (type === 'ul') {
-      newEl = document.createElement('ul');
-      newEl.className = 'my-4 space-y-1.5 list-disc list-inside text-zinc-200';
-      newEl.innerHTML = `<li>${escapeHtml(cleanText)}</li>`;
-    } else if (type === 'ol') {
-      newEl = document.createElement('ol');
-      newEl.className = 'my-4 space-y-1.5 list-decimal list-inside text-zinc-200';
-      newEl.innerHTML = `<li>${escapeHtml(cleanText)}</li>`;
     } else {
       newEl = document.createElement('p');
       newEl.className = 'my-3 leading-relaxed text-zinc-200 text-lg';
       newEl.textContent = cleanText;
     }
+    return newEl;
+  };
+
+  // ================= MULTI-BLOCK FORMAT TRANSFORMER =================
+  const applyBlockFormat = (type: 'h1' | 'h2' | 'h3' | 'h4' | 'quote' | 'story' | 'illustration' | 'cue' | 'ul' | 'ol' | 'p') => {
+    if (!editorRef.current) return;
+    editorRef.current.focus();
+    restoreSelection();
+
+    const selectedBlocks = getSelectedBlockElements();
+    if (selectedBlocks.length === 0) return;
 
     pushHistorySnapshot();
-    editorRef.current.replaceChild(newEl, currentBlock);
 
-    // Place caret at end of the new element
-    const sel = window.getSelection();
-    if (sel) {
-      const range = document.createRange();
-      range.selectNodeContents(newEl);
-      range.collapse(false);
-      sel.removeAllRanges();
-      sel.addRange(range);
-      lastRangeRef.current = range;
+    // Check if all selected blocks are already this type
+    const allAlreadyThisType = selectedBlocks.every((block) => {
+      const tag = block.tagName.toLowerCase();
+      const blockType = block.getAttribute('data-block');
+      return (
+        (type === 'h1' && tag === 'h1') ||
+        (type === 'h2' && tag === 'h2') ||
+        (type === 'h3' && tag === 'h3') ||
+        (type === 'h4' && tag === 'h4') ||
+        (type === 'quote' && blockType === 'author-quote') ||
+        (type === 'story' && blockType === 'story') ||
+        (type === 'illustration' && blockType === 'illustration') ||
+        (type === 'cue' && blockType === 'cue') ||
+        (type === 'ul' && tag === 'ul') ||
+        (type === 'ol' && tag === 'ol') ||
+        (type === 'p' && tag === 'p' && !blockType)
+      );
+    });
+
+    const targetType = (allAlreadyThisType || type === 'p') ? 'p' : type;
+    const newElements: HTMLElement[] = [];
+
+    if (targetType === 'ul' || targetType === 'ol') {
+      const listEl = document.createElement(targetType);
+      listEl.className = targetType === 'ul'
+        ? 'my-4 space-y-1.5 list-disc list-inside text-zinc-200'
+        : 'my-4 space-y-1.5 list-decimal list-inside text-zinc-200';
+
+      selectedBlocks.forEach((block) => {
+        if (block.tagName.toLowerCase() === 'ul' || block.tagName.toLowerCase() === 'ol') {
+          Array.from(block.children).forEach((li) => {
+            const newLi = document.createElement('li');
+            newLi.textContent = li.textContent?.trim() || '';
+            listEl.appendChild(newLi);
+          });
+        } else {
+          const text = getCleanBlockText(block);
+          const newLi = document.createElement('li');
+          newLi.textContent = text;
+          listEl.appendChild(newLi);
+        }
+      });
+
+      editorRef.current.replaceChild(listEl, selectedBlocks[0]);
+      for (let k = 1; k < selectedBlocks.length; k++) {
+        if (selectedBlocks[k].parentElement === editorRef.current) {
+          editorRef.current.removeChild(selectedBlocks[k]);
+        }
+      }
+      newElements.push(listEl);
+    } else {
+      selectedBlocks.forEach((block) => {
+        if ((block.tagName.toLowerCase() === 'ul' || block.tagName.toLowerCase() === 'ol') && targetType === 'p') {
+          // Explode list items into separate paragraphs
+          const lis = Array.from(block.children);
+          lis.forEach((li, idx) => {
+            const p = document.createElement('p');
+            p.className = 'my-3 leading-relaxed text-zinc-200 text-lg';
+            p.textContent = li.textContent?.trim() || '';
+            if (idx === 0) {
+              editorRef.current?.replaceChild(p, block);
+            } else if (newElements.length > 0) {
+              newElements[newElements.length - 1].after(p);
+            }
+            newElements.push(p);
+          });
+        } else {
+          const text = getCleanBlockText(block);
+          const newEl = createBlockElement(targetType, text);
+          editorRef.current?.replaceChild(newEl, block);
+          newElements.push(newEl);
+        }
+      });
+    }
+
+    if (newElements.length > 0) {
+      const sel = window.getSelection();
+      if (sel) {
+        const range = document.createRange();
+        range.setStart(newElements[0], 0);
+        range.setEnd(newElements[newElements.length - 1], newElements[newElements.length - 1].childNodes.length);
+        sel.removeAllRanges();
+        sel.addRange(range);
+        lastRangeRef.current = range;
+      }
     }
 
     pushHistorySnapshot();
