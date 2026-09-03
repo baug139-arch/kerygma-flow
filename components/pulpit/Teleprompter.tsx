@@ -31,6 +31,7 @@ export function Teleprompter({
           h1: 'text-amber-400 border-b border-zinc-800 pb-3 font-black',
           h2: 'text-amber-300 border-l-4 border-amber-500 pl-4 my-6 font-extrabold',
           h3: 'text-zinc-200 font-bold',
+          h4: 'text-amber-300 font-bold underline decoration-amber-500/50 decoration-2 underline-offset-4 my-3',
           // Special Intro & Conclusion Stage Blocks
           introCard:
             'my-7 p-6 sm:p-7 rounded-3xl bg-gradient-to-r from-teal-950/50 via-emerald-950/40 to-zinc-950/60 border-l-4 border-emerald-400 border-y border-r border-emerald-500/20 text-emerald-100 shadow-[0_0_25px_rgba(16,185,129,0.12)]',
@@ -63,6 +64,7 @@ export function Teleprompter({
           h1: 'text-[#683b0e] border-b border-[#e4d4b8] pb-3 font-black',
           h2: 'text-[#8c5218] border-l-4 border-[#8c5218] pl-4 my-6 font-extrabold',
           h3: 'text-[#433422] font-bold',
+          h4: 'text-[#8c5218] font-bold underline decoration-[#8c5218]/40 decoration-2 underline-offset-4 my-3',
           // Special Intro & Conclusion Stage Blocks
           introCard:
             'my-7 p-6 sm:p-7 rounded-3xl bg-[#e3efe9] border-l-4 border-[#2b6a55] border-y border-r border-[#2b6a55]/30 text-[#143d30] shadow-sm',
@@ -96,6 +98,7 @@ export function Teleprompter({
           h1: 'text-zinc-950 border-b border-zinc-200 pb-3 font-black',
           h2: 'text-blue-900 border-l-4 border-blue-600 pl-4 my-6 font-extrabold',
           h3: 'text-zinc-800 font-bold',
+          h4: 'text-amber-800 font-bold underline decoration-amber-600/40 decoration-2 underline-offset-4 my-3',
           // Special Intro & Conclusion Stage Blocks
           introCard:
             'my-7 p-6 sm:p-7 rounded-3xl bg-emerald-50 border-l-4 border-emerald-600 border-y border-r border-emerald-200 text-emerald-950 shadow-sm',
@@ -129,7 +132,7 @@ export function Teleprompter({
 
   // Group markdown lines into structured semantic blocks
   const blocks: Array<{
-    type: 'h1' | 'h2' | 'h3' | 'intro' | 'conclusion' | 'scripture' | 'author-quote' | 'cue' | 'story' | 'illustration' | 'bullet' | 'numbered' | 'paragraph';
+    type: 'h1' | 'h2' | 'h3' | 'h4' | 'intro' | 'conclusion' | 'scripture' | 'author-quote' | 'cue' | 'story' | 'illustration' | 'bullet' | 'numbered' | 'paragraph';
     content: string;
     header?: string;
     index: number;
@@ -192,6 +195,14 @@ export function Teleprompter({
     if (line.startsWith('### ')) {
       const clean = line.replace(/^###\s+/, '').replace(/^[*_\s]+|[*_\s]+$/g, '').trim();
       blocks.push({ type: 'h3', content: clean, index: i });
+      i++;
+      continue;
+    }
+
+    // Heading 4 / Thesis (#### ...)
+    if (line.startsWith('#### ')) {
+      const clean = line.replace(/^####\s+/, '').replace(/^[*_\s]+|[*_\s]+$/g, '').trim();
+      blocks.push({ type: 'h4', content: clean, index: i });
       i++;
       continue;
     }
@@ -329,6 +340,7 @@ export function Teleprompter({
           b.type === 'h1' ||
           b.type === 'h2' ||
           b.type === 'h3' ||
+          b.type === 'h4' ||
           b.type === 'story' ||
           b.type === 'scripture'
       )
@@ -407,6 +419,13 @@ export function Teleprompter({
                 <h3 key={idx} className={`text-xl sm:text-2xl ${themeStyles.h3}`}>
                   {block.content}
                 </h3>
+              );
+
+            case 'h4':
+              return (
+                <h4 key={idx} className={`text-lg sm:text-xl ${themeStyles.h4}`}>
+                  {renderInlineFormatted(block.content, themeStyles)}
+                </h4>
               );
 
             case 'cue':

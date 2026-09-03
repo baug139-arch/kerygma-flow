@@ -10,6 +10,7 @@ import {
   Heading1,
   Heading2,
   Heading3,
+  Heading4,
   Bold,
   Italic,
   List,
@@ -73,6 +74,14 @@ function markdownToHtml(md: string): string {
     if (line.startsWith('### ')) {
       const text = line.replace(/^###\s+/, '').replace(/^[*_\s]+|[*_\s]+$/g, '').trim();
       html += `<h3 class="text-xl font-bold text-zinc-200 my-3">${escapeHtml(text)}</h3>`;
+      i++;
+      continue;
+    }
+
+    // H4 - Highlighted Thesis (bold and underlined)
+    if (line.startsWith('#### ')) {
+      const text = line.replace(/^####\s+/, '').replace(/^[*_\s]+|[*_\s]+$/g, '').trim();
+      html += `<h4 class="text-lg sm:text-xl font-bold text-amber-300 underline decoration-amber-500/50 decoration-2 underline-offset-4 my-3 tracking-tight">${escapeHtml(text)}</h4>`;
       i++;
       continue;
     }
@@ -230,6 +239,8 @@ function htmlToMarkdown(element: HTMLElement): string {
           return `\n\n## ${el.textContent?.trim()}\n\n`;
         case 'h3':
           return `\n\n### ${el.textContent?.trim()}\n\n`;
+        case 'h4':
+          return `\n\n#### ${el.textContent?.trim()}\n\n`;
         case 'p':
           return `\n\n${Array.from(el.childNodes).map(processNode).join('')}\n\n`;
         case 'strong':
@@ -472,17 +483,15 @@ export function SermonEditor({ sermon, onSave, onLaunchPulpit, onBack }: SermonE
   };
 
   // ================= PARAGRAPH-LEVEL BLOCK FORMAT TRANSFORMER =================
-  const applyBlockFormat = (type: 'h1' | 'h2' | 'h3' | 'quote' | 'story' | 'illustration' | 'cue' | 'ul' | 'ol' | 'p') => {
+  const applyBlockFormat = (type: 'h1' | 'h2' | 'h3' | 'h4' | 'quote' | 'story' | 'illustration' | 'cue' | 'ul' | 'ol' | 'p') => {
     if (!editorRef.current) return;
     editorRef.current.focus();
     restoreSelection();
 
     const currentBlock = getSelectedBlockElement();
-    if (!currentBlock) return;
+    if (!currentBlock || currentBlock === editorRef.current) return;
 
-    const rawText = getCleanBlockText(currentBlock);
-    const cleanText = rawText || 'Текст';
-
+    const cleanText = getCleanBlockText(currentBlock);
     const currentTag = currentBlock.tagName.toLowerCase();
     const currentBlockType = currentBlock.getAttribute('data-block');
 
@@ -491,6 +500,7 @@ export function SermonEditor({ sermon, onSave, onLaunchPulpit, onBack }: SermonE
       (type === 'h1' && currentTag === 'h1') ||
       (type === 'h2' && currentTag === 'h2') ||
       (type === 'h3' && currentTag === 'h3') ||
+      (type === 'h4' && currentTag === 'h4') ||
       (type === 'quote' && currentBlockType === 'author-quote') ||
       (type === 'story' && currentBlockType === 'story') ||
       (type === 'illustration' && currentBlockType === 'illustration') ||
@@ -517,6 +527,10 @@ export function SermonEditor({ sermon, onSave, onLaunchPulpit, onBack }: SermonE
     } else if (type === 'h3') {
       newEl = document.createElement('h3');
       newEl.className = 'text-xl sm:text-2xl font-bold text-zinc-200 border-l-2 border-zinc-600 pl-3 my-4 tracking-tight';
+      newEl.textContent = cleanText;
+    } else if (type === 'h4') {
+      newEl = document.createElement('h4');
+      newEl.className = 'text-lg sm:text-xl font-bold text-amber-300 underline decoration-amber-500/50 decoration-2 underline-offset-4 my-3 tracking-tight';
       newEl.textContent = cleanText;
     } else if (type === 'quote') {
       newEl = document.createElement('div');
@@ -972,6 +986,19 @@ export function SermonEditor({ sermon, onSave, onLaunchPulpit, onBack }: SermonE
             title="Подраздел H3"
           >
             <Heading3 className="w-4 h-4" />
+          </button>
+
+          <button
+            onMouseDown={(e) => {
+              e.preventDefault();
+              applyBlockFormat('h4');
+            }}
+            onMouseEnter={() => setHoveredTool('Тезис (H4: жирный + подчеркнутый)')}
+            onMouseLeave={() => setHoveredTool(null)}
+            className="p-2.5 rounded-xl text-amber-200 hover:bg-amber-500/10 transition-all active:scale-90 font-bold text-xs"
+            title="Тезис H4"
+          >
+            <Heading4 className="w-4 h-4" />
           </button>
 
           <div className="w-6 h-px bg-zinc-800 my-0.5" />
