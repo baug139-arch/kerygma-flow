@@ -70,18 +70,28 @@ function markdownToHtml(md: string): string {
       continue;
     }
 
-    // H3
-    if (line.startsWith('### ')) {
-      const text = line.replace(/^###\s+/, '').replace(/^[*_\s]+|[*_\s]+$/g, '').trim();
-      html += `<h3 class="text-xl font-bold text-zinc-200 my-3">${escapeHtml(text)}</h3>`;
+    // H4 - Highlighted Thesis (bold and underlined, normal color)
+    if (/^#{4}\s*/.test(line) || /^<h4\b[^>]*>/i.test(line)) {
+      const text = line
+        .replace(/^<h4\b[^>]*>/i, '')
+        .replace(/<\/h4>$/i, '')
+        .replace(/^#{4}\s*/, '')
+        .replace(/^[*_\s]+|[*_\s]+$/g, '')
+        .trim();
+      html += `<h4 class="text-lg sm:text-xl font-bold text-zinc-100 underline decoration-zinc-400 decoration-2 underline-offset-4 my-3 tracking-tight">${escapeHtml(text)}</h4>`;
       i++;
       continue;
     }
 
-    // H4 - Highlighted Thesis (bold and underlined, normal color)
-    if (line.startsWith('#### ')) {
-      const text = line.replace(/^####\s+/, '').replace(/^[*_\s]+|[*_\s]+$/g, '').trim();
-      html += `<h4 class="text-lg sm:text-xl font-bold text-zinc-100 underline decoration-zinc-400 decoration-2 underline-offset-4 my-3 tracking-tight">${escapeHtml(text)}</h4>`;
+    // H3
+    if (/^#{3}\s*/.test(line) || /^<h3\b[^>]*>/i.test(line)) {
+      const text = line
+        .replace(/^<h3\b[^>]*>/i, '')
+        .replace(/<\/h3>$/i, '')
+        .replace(/^#{3}\s*/, '')
+        .replace(/^[*_\s]+|[*_\s]+$/g, '')
+        .trim();
+      html += `<h3 class="text-xl font-bold text-zinc-200 my-3">${escapeHtml(text)}</h3>`;
       i++;
       continue;
     }

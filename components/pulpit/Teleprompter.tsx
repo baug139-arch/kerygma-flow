@@ -151,10 +151,28 @@ export function Teleprompter({
       continue;
     }
 
-    // Heading 1
-    if (line.startsWith('# ')) {
-      const clean = line.replace(/^#\s+/, '').replace(/^[*_\s]+|[*_\s]+$/g, '').trim();
-      blocks.push({ type: 'h1', content: clean, index: i });
+    // Heading 4 / Thesis (#### ... or <h4...)
+    if (/^#{4}\s*/.test(line) || /^<h4\b[^>]*>/i.test(line)) {
+      const clean = line
+        .replace(/^<h4\b[^>]*>/i, '')
+        .replace(/<\/h4>$/i, '')
+        .replace(/^#{4}\s*/, '')
+        .replace(/^[*_\s]+|[*_\s]+$/g, '')
+        .trim();
+      blocks.push({ type: 'h4', content: clean, index: i });
+      i++;
+      continue;
+    }
+
+    // Heading 3 (### ... or <h3...)
+    if (/^#{3}\s*/.test(line) || /^<h3\b[^>]*>/i.test(line)) {
+      const clean = line
+        .replace(/^<h3\b[^>]*>/i, '')
+        .replace(/<\/h3>$/i, '')
+        .replace(/^#{3}\s*/, '')
+        .replace(/^[*_\s]+|[*_\s]+$/g, '')
+        .trim();
+      blocks.push({ type: 'h3', content: clean, index: i });
       i++;
       continue;
     }
@@ -183,26 +201,28 @@ export function Teleprompter({
       continue;
     }
 
-    // Heading 2
-    if (line.startsWith('## ')) {
-      const clean = line.replace(/^##\s+/, '').replace(/^[*_\s]+|[*_\s]+$/g, '').trim();
+    // Heading 2 (## ... or <h2...)
+    if (/^#{2}\s*/.test(line) || /^<h2\b[^>]*>/i.test(line)) {
+      const clean = line
+        .replace(/^<h2\b[^>]*>/i, '')
+        .replace(/<\/h2>$/i, '')
+        .replace(/^#{2}\s*/, '')
+        .replace(/^[*_\s]+|[*_\s]+$/g, '')
+        .trim();
       blocks.push({ type: 'h2', content: clean, index: i });
       i++;
       continue;
     }
 
-    // Heading 3
-    if (line.startsWith('### ')) {
-      const clean = line.replace(/^###\s+/, '').replace(/^[*_\s]+|[*_\s]+$/g, '').trim();
-      blocks.push({ type: 'h3', content: clean, index: i });
-      i++;
-      continue;
-    }
-
-    // Heading 4 / Thesis (#### ...)
-    if (line.startsWith('#### ')) {
-      const clean = line.replace(/^####\s+/, '').replace(/^[*_\s]+|[*_\s]+$/g, '').trim();
-      blocks.push({ type: 'h4', content: clean, index: i });
+    // Heading 1 (# ... or <h1...)
+    if (/^#\s+/.test(line) || /^<h1\b[^>]*>/i.test(line)) {
+      const clean = line
+        .replace(/^<h1\b[^>]*>/i, '')
+        .replace(/<\/h1>$/i, '')
+        .replace(/^#\s+/, '')
+        .replace(/^[*_\s]+|[*_\s]+$/g, '')
+        .trim();
+      blocks.push({ type: 'h1', content: clean, index: i });
       i++;
       continue;
     }
