@@ -31,7 +31,7 @@ export function Teleprompter({
           h1: 'text-amber-400 border-b border-zinc-800 pb-3 font-black',
           h2: 'text-amber-300 border-l-4 border-amber-500 pl-4 my-6 font-extrabold',
           h3: 'text-zinc-200 font-bold',
-          h4: 'text-amber-300 font-bold underline decoration-amber-500/50 decoration-2 underline-offset-4 my-3',
+          h4: 'text-zinc-100 font-bold underline decoration-zinc-400 decoration-2 underline-offset-4 my-3',
           // Special Intro & Conclusion Stage Blocks
           introCard:
             'my-7 p-6 sm:p-7 rounded-3xl bg-gradient-to-r from-teal-950/50 via-emerald-950/40 to-zinc-950/60 border-l-4 border-emerald-400 border-y border-r border-emerald-500/20 text-emerald-100 shadow-[0_0_25px_rgba(16,185,129,0.12)]',
@@ -64,7 +64,7 @@ export function Teleprompter({
           h1: 'text-[#683b0e] border-b border-[#e4d4b8] pb-3 font-black',
           h2: 'text-[#8c5218] border-l-4 border-[#8c5218] pl-4 my-6 font-extrabold',
           h3: 'text-[#433422] font-bold',
-          h4: 'text-[#8c5218] font-bold underline decoration-[#8c5218]/40 decoration-2 underline-offset-4 my-3',
+          h4: 'text-[#433422] font-bold underline decoration-[#433422]/60 decoration-2 underline-offset-4 my-3',
           // Special Intro & Conclusion Stage Blocks
           introCard:
             'my-7 p-6 sm:p-7 rounded-3xl bg-[#e3efe9] border-l-4 border-[#2b6a55] border-y border-r border-[#2b6a55]/30 text-[#143d30] shadow-sm',
@@ -98,7 +98,7 @@ export function Teleprompter({
           h1: 'text-zinc-950 border-b border-zinc-200 pb-3 font-black',
           h2: 'text-blue-900 border-l-4 border-blue-600 pl-4 my-6 font-extrabold',
           h3: 'text-zinc-800 font-bold',
-          h4: 'text-amber-800 font-bold underline decoration-amber-600/40 decoration-2 underline-offset-4 my-3',
+          h4: 'text-zinc-900 font-bold underline decoration-zinc-700 decoration-2 underline-offset-4 my-3',
           // Special Intro & Conclusion Stage Blocks
           introCard:
             'my-7 p-6 sm:p-7 rounded-3xl bg-emerald-50 border-l-4 border-emerald-600 border-y border-r border-emerald-200 text-emerald-950 shadow-sm',

@@ -78,10 +78,10 @@ function markdownToHtml(md: string): string {
       continue;
     }
 
-    // H4 - Highlighted Thesis (bold and underlined)
+    // H4 - Highlighted Thesis (bold and underlined, normal color)
     if (line.startsWith('#### ')) {
       const text = line.replace(/^####\s+/, '').replace(/^[*_\s]+|[*_\s]+$/g, '').trim();
-      html += `<h4 class="text-lg sm:text-xl font-bold text-amber-300 underline decoration-amber-500/50 decoration-2 underline-offset-4 my-3 tracking-tight">${escapeHtml(text)}</h4>`;
+      html += `<h4 class="text-lg sm:text-xl font-bold text-zinc-100 underline decoration-zinc-400 decoration-2 underline-offset-4 my-3 tracking-tight">${escapeHtml(text)}</h4>`;
       i++;
       continue;
     }
@@ -530,7 +530,7 @@ export function SermonEditor({ sermon, onSave, onLaunchPulpit, onBack }: SermonE
       newEl.textContent = cleanText;
     } else if (type === 'h4') {
       newEl = document.createElement('h4');
-      newEl.className = 'text-lg sm:text-xl font-bold text-amber-300 underline decoration-amber-500/50 decoration-2 underline-offset-4 my-3 tracking-tight';
+      newEl.className = 'text-lg sm:text-xl font-bold text-zinc-100 underline decoration-zinc-400 decoration-2 underline-offset-4 my-3 tracking-tight';
       newEl.textContent = cleanText;
     } else if (type === 'quote') {
       newEl = document.createElement('div');
@@ -995,7 +995,7 @@ export function SermonEditor({ sermon, onSave, onLaunchPulpit, onBack }: SermonE
             }}
             onMouseEnter={() => setHoveredTool('Тезис (H4: жирный + подчеркнутый)')}
             onMouseLeave={() => setHoveredTool(null)}
-            className="p-2.5 rounded-xl text-amber-200 hover:bg-amber-500/10 transition-all active:scale-90 font-bold text-xs"
+            className="p-2.5 rounded-xl text-zinc-300 hover:text-zinc-100 hover:bg-zinc-800/80 transition-all active:scale-90 font-bold text-xs"
             title="Тезис H4"
           >
             <Heading4 className="w-4 h-4" />
