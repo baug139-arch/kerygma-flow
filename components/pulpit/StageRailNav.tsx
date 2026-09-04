@@ -78,8 +78,8 @@ export function StageRailNav({
                   <div className="flex items-center gap-1.5">
                     <span>{item.title}</span>
                     {item.targetMinute !== undefined && (
-                      <span className="text-[10px] font-mono opacity-70 border-l border-zinc-500/30 pl-1.5 ml-0.5 text-amber-400">
-                        ~{item.targetMinute} мин
+                      <span className="text-[10px] font-mono opacity-80 border-l border-zinc-500/30 pl-1.5 ml-0.5 text-amber-400">
+                        осталось ~{item.targetMinute} мин
                       </span>
                     )}
                   </div>

@@ -5,7 +5,7 @@ import { BookOpen, Sparkles, Quote, Bookmark, Megaphone, Compass, Flag, Clock } 
 import { ThemeMode } from '@/lib/types';
 import { parseBibleReferences, getVerseData } from '@/lib/bible/parser';
 import { cleanDocumentArtifacts } from '@/lib/utils/htmlDecoder';
-import { calculatePacingMap, getPacingStatus } from '@/lib/utils/pacing';
+import { calculatePacingMap } from '@/lib/utils/pacing';
 
 interface TeleprompterProps {
   content: string;
@@ -493,31 +493,13 @@ export function Teleprompter({
     const point = pacingMap.get(lineIndex);
     if (!point) return null;
 
-    const pacingStatus =
-      elapsedSeconds && elapsedSeconds >= 30
-        ? getPacingStatus(elapsedSeconds, point.targetMinute)
-        : null;
-
     return (
       <span
-        className="inline-flex items-center gap-1.5 ml-3 px-2.5 py-0.5 rounded-full text-xs font-mono font-normal tracking-normal border border-zinc-500/20 bg-zinc-500/10 opacity-70 hover:opacity-100 transition-all select-none align-middle"
-        title={`Ориентир темпа: ${point.formattedTarget} от начала проповеди`}
+        className="inline-flex items-center gap-1.5 ml-3 px-2.5 py-0.5 rounded-full text-xs font-mono font-normal tracking-normal border border-amber-500/30 bg-amber-500/10 text-amber-300 select-none align-middle shadow-sm"
+        title={`Ориентир таймера: на этом этапе на таймере должно оставаться ${point.formattedTarget}`}
       >
-        <Clock className="w-3 h-3 text-amber-400 shrink-0" />
+        <Clock className="w-3.5 h-3.5 text-amber-400 shrink-0" />
         <span>{point.formattedTarget}</span>
-        {pacingStatus && (
-          <span
-            className={`ml-0.5 px-1.5 py-0.2 rounded text-[10px] font-semibold ${
-              pacingStatus.status === 'on-pace'
-                ? 'bg-emerald-500/20 text-emerald-400'
-                : pacingStatus.status === 'behind'
-                ? 'bg-amber-500/20 text-amber-300'
-                : 'bg-cyan-500/20 text-cyan-300'
-            }`}
-          >
-            {pacingStatus.label}
-          </span>
-        )}
       </span>
     );
   };

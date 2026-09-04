@@ -2,6 +2,7 @@ import { cleanDocumentArtifacts } from './htmlDecoder';
 
 export interface PacingPoint {
   lineIndex: number;
+  remainingMinutes: number;
   targetMinute: number;
   formattedTarget: string;
   sectionWordCount: number;
@@ -14,8 +15,8 @@ export interface PacingStatus {
 }
 
 /**
- * Calculates the target elapsed minute when the preacher should reach each section.
- * Distributed proportionally based on section word counts vs target sermon duration.
+ * Calculates the target remaining minutes on the countdown timer when the preacher reaches each section.
+ * Distributed proportionally based on remaining word counts vs total duration.
  */
 export function calculatePacingMap(
   content: string,
@@ -88,14 +89,16 @@ export function calculatePacingMap(
 
   for (let s = 0; s < sections.length; s++) {
     const sec = sections[s];
-    // Start minute of this section
-    const rawTarget = (cumulativeWords / totalWords) * targetDurationMinutes;
-    const targetMinute = Math.round(rawTarget);
+    // Remaining words from this section to the end of sermon
+    const remainingWords = Math.max(0, totalWords - cumulativeWords);
+    const rawRemaining = (remainingWords / totalWords) * targetDurationMinutes;
+    const remainingMinutes = Math.max(1, Math.round(rawRemaining));
 
     pacingMap.set(sec.lineIndex, {
       lineIndex: sec.lineIndex,
-      targetMinute,
-      formattedTarget: `~${targetMinute} мин`,
+      remainingMinutes,
+      targetMinute: remainingMinutes,
+      formattedTarget: `осталось ~${remainingMinutes} мин`,
       sectionWordCount: sec.words,
     });
 
