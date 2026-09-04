@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Play, Pause, RotateCcw, Plus, Clock, ChevronDown, Sparkles } from 'lucide-react';
+import { Play, Pause, RotateCcw, Plus, Minus, Clock, ChevronDown, Sparkles } from 'lucide-react';
 import { StageLightState, StageTimerStatus, ThemeMode } from '@/lib/types';
 
 interface StageTimerProps {
@@ -114,6 +114,35 @@ export function StageTimer({
           <span className={`relative w-2 h-2 rounded-full ${light.solidDot}`} />
         </div>
 
+        {/* Quick -1 / +1 adjusters right on the pill */}
+        <div
+          className="flex items-center gap-0.5 pl-1.5 ml-0.5 border-l border-white/15"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onAddMinutes(-1);
+            }}
+            className="w-5 h-5 flex items-center justify-center rounded text-[11px] font-mono font-bold hover:bg-white/20 active:scale-90 text-inherit opacity-75 hover:opacity-100 transition-all cursor-pointer"
+            title="Уменьшить регламент на 1 минуту (-1 мин)"
+          >
+            -1
+          </button>
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onAddMinutes(1);
+            }}
+            className="w-5 h-5 flex items-center justify-center rounded text-[11px] font-mono font-bold hover:bg-white/20 active:scale-90 text-inherit opacity-75 hover:opacity-100 transition-all cursor-pointer"
+            title="Увеличить регламент на 1 минуту (+1 мин)"
+          >
+            +1
+          </button>
+        </div>
+
         {/* Small expand arrow */}
         <ChevronDown
           className={`w-3.5 h-3.5 opacity-40 group-hover:opacity-100 transition-transform duration-200 ${
@@ -125,7 +154,7 @@ export function StageTimer({
       {/* Expanded Quick Settings Popover */}
       {isExpanded && (
         <div
-          className={`mt-2 p-3.5 rounded-2xl border backdrop-blur-xl shadow-2xl space-y-3 animate-in fade-in slide-in-from-top-2 duration-150 min-w-[210px] ${
+          className={`mt-2 p-3.5 rounded-2xl border backdrop-blur-xl shadow-2xl space-y-3 animate-in fade-in slide-in-from-top-2 duration-150 min-w-[220px] ${
             theme === 'oled'
               ? 'bg-zinc-950/95 border-zinc-800 text-zinc-100'
               : theme === 'sepia'
@@ -134,27 +163,70 @@ export function StageTimer({
           }`}
           onClick={(e) => e.stopPropagation()}
         >
-          <div className="flex items-center justify-between text-xs opacity-70 pb-2 border-b border-inherit font-medium">
+          <div className="flex items-center justify-between text-xs pb-2 border-b border-inherit font-medium">
             <div className="flex items-center gap-1.5">
               <Clock className="w-3.5 h-3.5 text-amber-500" />
-              <span>Регламент: {targetMinutes}м</span>
+              <span className="opacity-70">Регламент:</span>
+              <div className="flex items-center gap-1 font-mono font-bold px-1.5 py-0.5 rounded-lg border border-zinc-700/60 bg-zinc-800/60">
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onAddMinutes(-1);
+                  }}
+                  className="w-5 h-5 flex items-center justify-center rounded hover:bg-white/20 active:scale-90 opacity-75 hover:opacity-100 transition-all cursor-pointer"
+                  title="-1 минута"
+                >
+                  <Minus className="w-3 h-3" />
+                </button>
+                <span className="text-amber-400 min-w-[28px] text-center">{targetMinutes}м</span>
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onAddMinutes(1);
+                  }}
+                  className="w-5 h-5 flex items-center justify-center rounded hover:bg-white/20 active:scale-90 opacity-75 hover:opacity-100 transition-all cursor-pointer"
+                  title="+1 минута"
+                >
+                  <Plus className="w-3 h-3" />
+                </button>
+              </div>
             </div>
-            <span>Прошло: {elapsedFormatted}</span>
+            <span className="opacity-70">Прошло: {elapsedFormatted}</span>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="grid grid-cols-4 gap-1.5">
             <button
-              onClick={() => onAddMinutes(2)}
-              className="flex-1 flex items-center justify-center gap-1 px-3 py-1.5 rounded-xl text-xs font-semibold bg-zinc-800/80 hover:bg-zinc-700 text-zinc-200 transition-all border border-zinc-700"
-              title="Добавить 2 минуты"
+              onClick={() => onAddMinutes(-1)}
+              className="flex items-center justify-center gap-0.5 px-2 py-1.5 rounded-xl text-xs font-semibold bg-zinc-800/80 hover:bg-zinc-700 text-zinc-200 transition-all border border-zinc-700/60 cursor-pointer"
+              title="Отнять 1 минуту (-1 мин)"
+            >
+              <Minus className="w-3 h-3" />
+              <span>1м</span>
+            </button>
+
+            <button
+              onClick={() => onAddMinutes(1)}
+              className="flex items-center justify-center gap-0.5 px-2 py-1.5 rounded-xl text-xs font-semibold bg-zinc-800/80 hover:bg-zinc-700 text-zinc-200 transition-all border border-zinc-700/60 cursor-pointer"
+              title="Добавить 1 минуту (+1 мин)"
             >
               <Plus className="w-3 h-3" />
-              <span>+2 мин</span>
+              <span>1м</span>
+            </button>
+
+            <button
+              onClick={() => onAddMinutes(5)}
+              className="flex items-center justify-center gap-0.5 px-2 py-1.5 rounded-xl text-xs font-semibold bg-zinc-800/80 hover:bg-zinc-700 text-zinc-200 transition-all border border-zinc-700/60 cursor-pointer"
+              title="Добавить 5 минут (+5 мин)"
+            >
+              <Plus className="w-3 h-3" />
+              <span>5м</span>
             </button>
 
             <button
               onClick={onReset}
-              className="p-2 rounded-xl text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800/60 transition-all border border-transparent hover:border-zinc-700"
+              className="flex items-center justify-center px-2 py-1.5 rounded-xl text-xs font-medium text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800/60 transition-all border border-zinc-700/40 cursor-pointer"
               title="Сбросить таймер"
             >
               <RotateCcw className="w-3.5 h-3.5" />

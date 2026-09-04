@@ -16,6 +16,17 @@ export function useStageTimer({ initialMinutes = 30, onTimeWarning, onTimeDanger
 
   const totalTargetSeconds = targetMinutes * 60;
   const remainingSeconds = totalTargetSeconds - elapsedSeconds;
+
+  // Sync targetMinutes when initialMinutes changes (e.g. after sermon finishes loading from localStorage)
+  const lastInitialMinutesRef = useRef(initialMinutes);
+  useEffect(() => {
+    if (lastInitialMinutesRef.current !== initialMinutes) {
+      lastInitialMinutesRef.current = initialMinutes;
+      if (status === 'ready') {
+        setTargetMinutes(initialMinutes);
+      }
+    }
+  }, [initialMinutes, status]);
   
   // Calculate light state
   let lightState: StageLightState = 'normal';

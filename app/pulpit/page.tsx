@@ -85,8 +85,8 @@ function PulpitContent() {
 
   // Calculate section pacing map
   const pacingMap = useMemo(() => {
-    return calculatePacingMap(sermon.content, sermon.targetDurationMinutes || 30);
-  }, [sermon.content, sermon.targetDurationMinutes]);
+    return calculatePacingMap(sermon.content, timer.targetMinutes);
+  }, [sermon.content, timer.targetMinutes]);
 
   // Parse outline items from sermon markdown with pacing target minutes
   const outlineItems: OutlineItem[] = useMemo(() => {
@@ -220,7 +220,7 @@ function PulpitContent() {
       date: new Date().toISOString().split('T')[0],
       venue,
       actualDurationSeconds: actualSeconds,
-      targetDurationMinutes: sermon.targetDurationMinutes || 30,
+      targetDurationMinutes: timer.targetMinutes,
       notes,
       createdAt: new Date().toISOString(),
     };
@@ -233,6 +233,18 @@ function PulpitContent() {
     await saveSermonToCloudAndLocal(updatedSermon);
     router.push('/');
   };
+
+  const handleAddMinutes = useCallback((mins: number) => {
+    timer.addMinutes(mins);
+    const newMins = Math.max(1, timer.targetMinutes + mins);
+    setSermon((prev) => {
+      const updated = { ...prev, targetDurationMinutes: newMins };
+      if (typeof window !== 'undefined') {
+        localStorage.setItem(`kerygma_sermon_${prev.id}`, JSON.stringify(updated));
+      }
+      return updated;
+    });
+  }, [timer]);
 
   // Keyboard navigation
   useEffect(() => {
@@ -325,7 +337,7 @@ function PulpitContent() {
         theme={theme}
         onToggle={timer.toggle}
         onReset={timer.reset}
-        onAddMinutes={timer.addMinutes}
+        onAddMinutes={handleAddMinutes}
       />
 
       {/* 2. Ultra-Discrete Minimalist Floating Summary / Outline Mode Toggle (Top-Right) */}
@@ -354,7 +366,7 @@ function PulpitContent() {
         containerRef={containerRef}
         isSummaryMode={isSummaryMode}
         targetAnchorIndex={targetAnchorIndex}
-        targetDurationMinutes={sermon.targetDurationMinutes}
+        targetDurationMinutes={timer.targetMinutes}
         elapsedSeconds={timer.elapsedSeconds}
         onOpenVerse={(verse) => {
           setActiveVerse(verse);
@@ -419,7 +431,7 @@ function PulpitContent() {
         onConfirmSave={handleConfirmSaveDelivery}
         onExitWithoutSaving={() => router.push('/')}
         actualDurationSeconds={timer.elapsedSeconds}
-        targetDurationMinutes={sermon.targetDurationMinutes || 30}
+        targetDurationMinutes={timer.targetMinutes}
         sermonTitle={sermon.title}
         theme={theme}
       />
