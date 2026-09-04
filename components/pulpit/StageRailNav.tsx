@@ -19,6 +19,8 @@ export function StageRailNav({
 }: StageRailNavProps) {
   const [hoveredId, setHoveredId] = useState<string | null>(null);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const itemRefs = useRef<Map<string, HTMLButtonElement>>(new Map());
+  const activeSlideIdRef = useRef<string | null>(null);
 
   const hideTooltip = useCallback(() => {
     if (timerRef.current) clearTimeout(timerRef.current);
@@ -28,10 +30,56 @@ export function StageRailNav({
   const showTooltip = useCallback((id: string) => {
     if (timerRef.current) clearTimeout(timerRef.current);
     setHoveredId(id);
-    // Auto-hide tooltip after 1.2s so it doesn't hang ("не висит долго") on iPad/desktop
+    // Auto-hide tooltip after 1.2s so it doesn't hang ("не висит долго")
     timerRef.current = setTimeout(() => {
       setHoveredId(null);
     }, 1200);
+  }, []);
+
+  // Track sliding touch gesture across the rail
+  const handleTouch = useCallback(
+    (e: React.TouchEvent) => {
+      const touch = e.touches[0];
+      if (!touch || !outline.length) return;
+
+      const clientY = touch.clientY;
+      let closestId: string | null = null;
+      let closestDist = Infinity;
+
+      for (const item of outline) {
+        const btn = itemRefs.current.get(item.id);
+        if (btn) {
+          const rect = btn.getBoundingClientRect();
+          const centerY = rect.top + rect.height / 2;
+          const dist = Math.abs(clientY - centerY);
+          if (dist < closestDist) {
+            closestDist = dist;
+            closestId = item.id;
+          }
+        }
+      }
+
+      if (closestId && closestId !== activeSlideIdRef.current) {
+        activeSlideIdRef.current = closestId;
+        setHoveredId(closestId);
+        onSelectSection(closestId);
+
+        if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
+          try {
+            navigator.vibrate?.(8);
+          } catch {}
+        }
+      }
+    },
+    [outline, onSelectSection]
+  );
+
+  const handleTouchEnd = useCallback(() => {
+    activeSlideIdRef.current = null;
+    if (timerRef.current) clearTimeout(timerRef.current);
+    timerRef.current = setTimeout(() => {
+      setHoveredId(null);
+    }, 400);
   }, []);
 
   useEffect(() => {
@@ -75,7 +123,11 @@ export function StageRailNav({
     <aside className="fixed right-2 sm:right-4 top-1/2 -translate-y-1/2 z-30 select-none">
       <nav
         aria-label="Навигация по разделам проповеди"
-        className={`flex flex-col items-center gap-1.5 p-1 sm:p-1.5 rounded-full border backdrop-blur-sm transition-all duration-300 shadow-lg opacity-20 hover:opacity-90 ${themeStyles.rail}`}
+        onTouchStart={handleTouch}
+        onTouchMove={handleTouch}
+        onTouchEnd={handleTouchEnd}
+        onTouchCancel={handleTouchEnd}
+        className={`flex flex-col items-center gap-1.5 p-1 sm:p-1.5 rounded-full border backdrop-blur-sm transition-all duration-300 shadow-lg opacity-20 hover:opacity-90 touch-none cursor-pointer ${themeStyles.rail}`}
       >
         {outline.map((item, index) => {
           const isActive = activeId === item.id;
@@ -91,34 +143,27 @@ export function StageRailNav({
 
           return (
             <div key={item.id} className="relative flex items-center">
-              {/* Tooltip on hover/focus with quick fade and auto-dismiss */}
+              {/* Tooltip on hover/focus - purely section title, NO time badge */}
               {hoveredId === item.id && (
                 <div
-                  className={`absolute right-full mr-2.5 px-2.5 py-1 rounded-xl text-xs font-semibold whitespace-nowrap border backdrop-blur-xl animate-in fade-in slide-in-from-right-2 duration-100 pointer-events-none z-40 max-w-xs truncate ${themeStyles.tooltip}`}
+                  className={`absolute right-full mr-2.5 px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap border backdrop-blur-xl animate-in fade-in slide-in-from-right-2 duration-100 pointer-events-none z-40 max-w-xs truncate ${themeStyles.tooltip}`}
                 >
-                  <div className="flex items-center gap-1.5">
-                    <span>{item.title}</span>
-                    {item.targetMinute !== undefined && (
-                      <span className="text-[10px] font-mono opacity-80 border-l border-zinc-500/30 pl-1.5 ml-0.5 text-amber-400">
-                        осталось ~{item.targetMinute} мин
-                      </span>
-                    )}
-                  </div>
+                  <span>{item.title}</span>
                 </div>
               )}
 
               {/* Number/Compass/Flag Button */}
               <button
+                ref={(el) => {
+                  if (el) itemRefs.current.set(item.id, el);
+                  else itemRefs.current.delete(item.id);
+                }}
                 onClick={() => {
                   hideTooltip();
                   onSelectSection(item.id);
                 }}
                 onMouseEnter={() => showTooltip(item.id)}
                 onMouseLeave={hideTooltip}
-                onTouchStart={() => showTooltip(item.id)}
-                onTouchEnd={() => {
-                  setTimeout(hideTooltip, 600);
-                }}
                 className={`flex items-center justify-center w-7 h-7 sm:w-8 sm:h-8 rounded-full text-[11px] font-bold border transition-all duration-200 ${
                   isActive ? themeStyles.activeItem : themeStyles.item
                 }`}

@@ -493,12 +493,26 @@ export function Teleprompter({
     const point = pacingMap.get(lineIndex);
     if (!point) return null;
 
+    const badgeStyle =
+      theme === 'oled'
+        ? 'border-amber-500/30 bg-amber-500/10 text-amber-300'
+        : theme === 'sepia'
+        ? 'border-[#8c5218]/30 bg-[#8c5218]/15 text-[#5c340b] font-semibold'
+        : 'border-amber-500/35 bg-amber-100/90 text-amber-950 font-semibold';
+
+    const clockColor =
+      theme === 'oled'
+        ? 'text-amber-400'
+        : theme === 'sepia'
+        ? 'text-[#8c5218]'
+        : 'text-amber-700';
+
     return (
       <span
-        className="inline-flex items-center gap-1.5 ml-3 px-2.5 py-0.5 rounded-full text-xs font-mono font-normal tracking-normal border border-amber-500/30 bg-amber-500/10 text-amber-300 select-none align-middle shadow-sm"
+        className={`inline-flex items-center gap-1.5 ml-3 px-2.5 py-0.5 rounded-full text-xs font-mono tracking-normal border select-none align-middle shadow-sm ${badgeStyle}`}
         title={`Ориентир таймера: на этом этапе на таймере должно оставаться ${point.formattedTarget}`}
       >
-        <Clock className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+        <Clock className={`w-3.5 h-3.5 shrink-0 ${clockColor}`} />
         <span>{point.formattedTarget}</span>
       </span>
     );
