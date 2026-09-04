@@ -114,35 +114,6 @@ export function StageTimer({
           <span className={`relative w-2 h-2 rounded-full ${light.solidDot}`} />
         </div>
 
-        {/* Quick -1 / +1 adjusters right on the pill */}
-        <div
-          className="flex items-center gap-0.5 pl-1.5 ml-0.5 border-l border-white/15"
-          onClick={(e) => e.stopPropagation()}
-        >
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              onAddMinutes(-1);
-            }}
-            className="w-5 h-5 flex items-center justify-center rounded text-[11px] font-mono font-bold hover:bg-white/20 active:scale-90 text-inherit opacity-75 hover:opacity-100 transition-all cursor-pointer"
-            title="Уменьшить регламент на 1 минуту (-1 мин)"
-          >
-            -1
-          </button>
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              onAddMinutes(1);
-            }}
-            className="w-5 h-5 flex items-center justify-center rounded text-[11px] font-mono font-bold hover:bg-white/20 active:scale-90 text-inherit opacity-75 hover:opacity-100 transition-all cursor-pointer"
-            title="Увеличить регламент на 1 минуту (+1 мин)"
-          >
-            +1
-          </button>
-        </div>
-
         {/* Small expand arrow */}
         <ChevronDown
           className={`w-3.5 h-3.5 opacity-40 group-hover:opacity-100 transition-transform duration-200 ${
