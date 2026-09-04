@@ -28,7 +28,18 @@ export interface OutlineItem {
   title: string;
   level: number;
   estimatedMinutes?: number;
+  targetMinute?: number;
   lineIndex?: number;
+}
+
+export interface SermonDelivery {
+  id: string;
+  date: string; // "YYYY-MM-DD"
+  venue?: string; // Церковь / город / служение
+  actualDurationSeconds: number; // Фактическое время в секундах
+  targetDurationMinutes: number; // Запланированное время
+  notes?: string; // Впечатления и заметки спикера
+  createdAt: string;
 }
 
 export interface Sermon {
@@ -41,6 +52,7 @@ export interface Sermon {
   updatedAt: string;
   syncedFromGoogle?: boolean;
   googleDocId?: string;
+  deliveries?: SermonDelivery[];
 }
 
 export type StageTimerStatus = 'ready' | 'running' | 'paused' | 'finished';

@@ -1,10 +1,11 @@
 'use client';
 
-import React, { useState, useEffect, useLayoutEffect, useRef, useCallback } from 'react';
-import { BookOpen, Sparkles, Quote, Bookmark, Megaphone, Compass, Flag } from 'lucide-react';
+import React, { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo } from 'react';
+import { BookOpen, Sparkles, Quote, Bookmark, Megaphone, Compass, Flag, Clock } from 'lucide-react';
 import { ThemeMode } from '@/lib/types';
 import { parseBibleReferences, getVerseData } from '@/lib/bible/parser';
 import { cleanDocumentArtifacts } from '@/lib/utils/htmlDecoder';
+import { calculatePacingMap, getPacingStatus } from '@/lib/utils/pacing';
 
 interface TeleprompterProps {
   content: string;
@@ -13,6 +14,8 @@ interface TeleprompterProps {
   containerRef: React.RefObject<HTMLDivElement | null>;
   isSummaryMode?: boolean;
   targetAnchorIndex?: number | null;
+  targetDurationMinutes?: number;
+  elapsedSeconds?: number;
   onOpenVerse?: (verse: any) => void;
 }
 
@@ -23,6 +26,8 @@ export function Teleprompter({
   containerRef,
   isSummaryMode = false,
   targetAnchorIndex,
+  targetDurationMinutes = 30,
+  elapsedSeconds = 0,
 }: TeleprompterProps) {
   // Theme classes
   const getThemeClasses = () => {
@@ -480,6 +485,43 @@ export function Teleprompter({
     return 'ring-2 ring-amber-400 shadow-[0_0_30px_rgba(251,191,36,0.4)] rounded-2xl transition-all duration-500 bg-amber-400/10 p-2 -m-2';
   };
 
+  const pacingMap = useMemo(() => {
+    return calculatePacingMap(content, targetDurationMinutes);
+  }, [content, targetDurationMinutes]);
+
+  const renderPacingBadge = (lineIndex: number) => {
+    const point = pacingMap.get(lineIndex);
+    if (!point) return null;
+
+    const pacingStatus =
+      elapsedSeconds && elapsedSeconds >= 30
+        ? getPacingStatus(elapsedSeconds, point.targetMinute)
+        : null;
+
+    return (
+      <span
+        className="inline-flex items-center gap-1.5 ml-3 px-2.5 py-0.5 rounded-full text-xs font-mono font-normal tracking-normal border border-zinc-500/20 bg-zinc-500/10 opacity-70 hover:opacity-100 transition-all select-none align-middle"
+        title={`Ориентир темпа: ${point.formattedTarget} от начала проповеди`}
+      >
+        <Clock className="w-3 h-3 text-amber-400 shrink-0" />
+        <span>{point.formattedTarget}</span>
+        {pacingStatus && (
+          <span
+            className={`ml-0.5 px-1.5 py-0.2 rounded text-[10px] font-semibold ${
+              pacingStatus.status === 'on-pace'
+                ? 'bg-emerald-500/20 text-emerald-400'
+                : pacingStatus.status === 'behind'
+                ? 'bg-amber-500/20 text-amber-300'
+                : 'bg-cyan-500/20 text-cyan-300'
+            }`}
+          >
+            {pacingStatus.label}
+          </span>
+        )}
+      </span>
+    );
+  };
+
   const displayedBlocks = isSummaryMode
     ? blocks.filter(
         (b) =>
@@ -514,7 +556,8 @@ export function Teleprompter({
                   key={idx}
                   className={`text-3xl sm:text-4xl lg:text-5xl pt-4 ${themeStyles.h1} ${getHighlightClass(block.index)}`}
                 >
-                  {block.content}
+                  <span>{block.content}</span>
+                  {renderPacingBadge(block.index)}
                 </h1>
               );
 
@@ -529,6 +572,7 @@ export function Teleprompter({
                   <div className={themeStyles.introBadge}>
                     <Compass className="w-4 h-4 shrink-0 animate-pulse text-emerald-400" />
                     <span>Введение / Старт</span>
+                    {renderPacingBadge(block.index)}
                   </div>
                   <div className={themeStyles.introTitle}>
                     {block.content}
@@ -547,6 +591,7 @@ export function Teleprompter({
                   <div className={themeStyles.conclusionBadge}>
                     <Flag className="w-4 h-4 shrink-0 fill-current text-amber-400" />
                     <span>Заключение / Призыв</span>
+                    {renderPacingBadge(block.index)}
                   </div>
                   <div className={themeStyles.conclusionTitle}>
                     {block.content}
@@ -562,7 +607,8 @@ export function Teleprompter({
                   key={idx}
                   className={`text-2xl sm:text-3xl ${themeStyles.h2} ${getHighlightClass(block.index)}`}
                 >
-                  {block.content}
+                  <span>{block.content}</span>
+                  {renderPacingBadge(block.index)}
                 </h2>
               );
 

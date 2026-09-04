@@ -13,7 +13,10 @@ import { useWakeLock } from '@/lib/hooks/useWakeLock';
 import { useStageTimer } from '@/lib/hooks/useStageTimer';
 import { useAutoscroll } from '@/lib/hooks/useAutoscroll';
 import { SAMPLE_SERMONS } from '@/lib/sampleSermons';
-import { OutlineItem, Sermon, ThemeMode, VerseData } from '@/lib/types';
+import { OutlineItem, Sermon, SermonDelivery, ThemeMode, VerseData } from '@/lib/types';
+import { FinishSermonModal } from '@/components/pulpit/FinishSermonModal';
+import { calculatePacingMap } from '@/lib/utils/pacing';
+import { saveSermonToCloudAndLocal } from '@/lib/firebase/sermonSync';
 
 function PulpitContent() {
   const router = useRouter();
@@ -80,7 +83,12 @@ function PulpitContent() {
     initialSpeed: 3,
   });
 
-  // Parse outline items from sermon markdown
+  // Calculate section pacing map
+  const pacingMap = useMemo(() => {
+    return calculatePacingMap(sermon.content, sermon.targetDurationMinutes || 30);
+  }, [sermon.content, sermon.targetDurationMinutes]);
+
+  // Parse outline items from sermon markdown with pacing target minutes
   const outlineItems: OutlineItem[] = useMemo(() => {
     const lines = sermon.content.split('\n');
     const items: OutlineItem[] = [];
@@ -92,6 +100,7 @@ function PulpitContent() {
           id: `heading-${index}`,
           title: trimmed.replace('# ', ''),
           level: 1,
+          targetMinute: pacingMap.get(index)?.targetMinute,
           lineIndex: index,
         });
       } else if (trimmed.startsWith('## ')) {
@@ -99,13 +108,14 @@ function PulpitContent() {
           id: `heading-${index}`,
           title: trimmed.replace('## ', ''),
           level: 2,
+          targetMinute: pacingMap.get(index)?.targetMinute,
           lineIndex: index,
         });
       }
     });
 
     return items;
-  }, [sermon.content]);
+  }, [sermon.content, pacingMap]);
 
   // ScrollSpy to track active outline section
   useEffect(() => {
@@ -185,6 +195,45 @@ function PulpitContent() {
     setIsSummaryMode((prev) => !prev);
   }, []);
 
+  const [isFinishModalOpen, setIsFinishModalOpen] = useState(false);
+
+  const handleRequestExit = useCallback(() => {
+    if (timer.elapsedSeconds >= 45) {
+      timer.pause();
+      setIsFinishModalOpen(true);
+    } else {
+      router.push('/');
+    }
+  }, [timer, router]);
+
+  const handleConfirmSaveDelivery = async ({
+    venue,
+    notes,
+    actualSeconds,
+  }: {
+    venue: string;
+    notes: string;
+    actualSeconds: number;
+  }) => {
+    const newDelivery: SermonDelivery = {
+      id: `del-${Date.now()}`,
+      date: new Date().toISOString().split('T')[0],
+      venue,
+      actualDurationSeconds: actualSeconds,
+      targetDurationMinutes: sermon.targetDurationMinutes || 30,
+      notes,
+      createdAt: new Date().toISOString(),
+    };
+
+    const updatedSermon: Sermon = {
+      ...sermon,
+      deliveries: [newDelivery, ...(sermon.deliveries || [])],
+    };
+
+    await saveSermonToCloudAndLocal(updatedSermon);
+    router.push('/');
+  };
+
   // Keyboard navigation
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -241,7 +290,7 @@ function PulpitContent() {
           } else if (isOutlineOpen) {
             setIsOutlineOpen(false);
           } else {
-            router.push('/');
+            handleRequestExit();
           }
           break;
       }
@@ -249,7 +298,7 @@ function PulpitContent() {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [autoscroll, timer, isVerseModalOpen, isOutlineOpen, router, handleToggleSummaryMode]);
+  }, [autoscroll, timer, isVerseModalOpen, isOutlineOpen, handleToggleSummaryMode, handleRequestExit]);
 
   const getRootBg = () => {
     switch (theme) {
@@ -305,6 +354,8 @@ function PulpitContent() {
         containerRef={containerRef}
         isSummaryMode={isSummaryMode}
         targetAnchorIndex={targetAnchorIndex}
+        targetDurationMinutes={sermon.targetDurationMinutes}
+        elapsedSeconds={timer.elapsedSeconds}
         onOpenVerse={(verse) => {
           setActiveVerse(verse);
           setIsVerseModalOpen(true);
@@ -335,7 +386,7 @@ function PulpitContent() {
         isSummaryMode={isSummaryMode}
         onToggleSummaryMode={handleToggleSummaryMode}
         onToggleOutline={() => setIsOutlineOpen((prev) => !prev)}
-        onExit={() => router.push('/')}
+        onExit={handleRequestExit}
       />
 
       {/* Outline Drawer Modal */}
@@ -360,6 +411,18 @@ function PulpitContent() {
           theme={theme}
         />
       )}
+
+      {/* Finish Sermon & Record Delivery History Modal */}
+      <FinishSermonModal
+        isOpen={isFinishModalOpen}
+        onClose={() => setIsFinishModalOpen(false)}
+        onConfirmSave={handleConfirmSaveDelivery}
+        onExitWithoutSaving={() => router.push('/')}
+        actualDurationSeconds={timer.elapsedSeconds}
+        targetDurationMinutes={sermon.targetDurationMinutes || 30}
+        sermonTitle={sermon.title}
+        theme={theme}
+      />
     </div>
   );
 }

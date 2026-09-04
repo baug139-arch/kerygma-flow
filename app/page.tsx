@@ -19,11 +19,13 @@ import {
   LogIn,
   LogOut,
   User as UserIcon,
+  Award,
 } from 'lucide-react';
 import { SAMPLE_SERMONS } from '@/lib/sampleSermons';
 import { Sermon } from '@/lib/types';
 import { SermonEditor } from '@/components/editor/SermonEditor';
 import { GoogleDriveModal } from '@/components/editor/GoogleDriveModal';
+import { DeliveryHistoryModal } from '@/components/editor/DeliveryHistoryModal';
 import { parseBibleReferences } from '@/lib/bible/parser';
 import {
   getLocalSermons,
@@ -49,6 +51,7 @@ export default function DashboardPage() {
   const [isDriveModalOpen, setIsDriveModalOpen] = useState(false);
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [isSyncing, setIsSyncing] = useState<boolean>(false);
+  const [historySermon, setHistorySermon] = useState<Sermon | null>(null);
 
   // Trigger full two-way sync
   const performSync = useCallback(async (uid: string) => {
@@ -356,6 +359,44 @@ export default function DashboardPage() {
                         )}
                       </div>
                     )}
+
+                    {/* Delivery history badge */}
+                    <div className="pt-1">
+                      {sermon.deliveries && sermon.deliveries.length > 0 ? (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setHistorySermon(sermon);
+                          }}
+                          className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-amber-500/30 text-[11px] font-semibold transition-colors"
+                          title="Открыть историю произнесения"
+                        >
+                          <Award className="w-3.5 h-3.5 text-amber-400" />
+                          <span>
+                            {sermon.deliveries.length} {sermon.deliveries.length === 1 ? 'раз' : 'раза'}
+                            {sermon.deliveries[0] &&
+                              ` (посл. ${new Date(sermon.deliveries[0].date).toLocaleDateString('ru-RU', {
+                                day: 'numeric',
+                                month: 'short',
+                              })})`}
+                          </span>
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setHistorySermon(sermon);
+                          }}
+                          className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-zinc-500 hover:text-zinc-300 text-[11px] font-medium transition-colors"
+                          title="Добавить факт произнесения"
+                        >
+                          <Award className="w-3 h-3 opacity-60" />
+                          <span>+ История</span>
+                        </button>
+                      )}
+                    </div>
                   </div>
 
                   <div className="pt-3 border-t border-zinc-800/60 flex items-center justify-between text-xs text-zinc-500">
@@ -391,6 +432,19 @@ export default function DashboardPage() {
         onClose={() => setIsDriveModalOpen(false)}
         onImportDoc={handleImportGoogleDoc}
       />
+
+      {/* Delivery History Modal */}
+      {historySermon && (
+        <DeliveryHistoryModal
+          isOpen={!!historySermon}
+          onClose={() => setHistorySermon(null)}
+          sermon={historySermon}
+          onUpdateSermon={(updated) => {
+            handleUpdateSermon(updated);
+            setHistorySermon(updated);
+          }}
+        />
+      )}
     </div>
   );
 }

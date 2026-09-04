@@ -19,6 +19,7 @@ import {
   ChevronUp,
   ChevronDown,
   FileText,
+  CheckCircle2,
 } from 'lucide-react';
 import { ThemeMode } from '@/lib/types';
 
@@ -148,6 +149,16 @@ export function PulpitControls({
           >
             <ArrowLeft className="w-4 h-4" />
             <span className="hidden md:inline">В меню</span>
+          </button>
+
+          {/* Finish Sermon button */}
+          <button
+            onClick={onExit}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 text-xs font-semibold transition-all"
+            title="Завершить проповедь и зафиксировать в истории"
+          >
+            <CheckCircle2 className="w-4 h-4 text-amber-400" />
+            <span>Завершить</span>
           </button>
 
           <div className="h-5 w-px bg-zinc-700/40 mx-1" />
