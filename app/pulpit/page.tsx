@@ -153,16 +153,27 @@ function PulpitContent() {
       const container = containerRef.current;
       const containerRect = container.getBoundingClientRect();
       const eyeY = containerRect.top + container.clientHeight * 0.28;
-      const elements = container.querySelectorAll<HTMLElement>('[data-block-idx]');
+      const elements = Array.from(container.querySelectorAll<HTMLElement>('[data-block-idx]'));
       let closestIdx = 0;
-      let minDiff = Infinity;
+      let minDistance = Infinity;
 
-      for (let k = 0; k < elements.length; k++) {
-        const el = elements[k];
+      for (const el of elements) {
         const rect = el.getBoundingClientRect();
-        const diff = Math.abs(rect.top - eyeY);
-        if (diff < minDiff) {
-          minDiff = diff;
+        // 1. If eye line is directly inside this element's vertical bounds
+        if (rect.top <= eyeY && rect.bottom >= eyeY) {
+          const rawIdx = el.getAttribute('data-block-idx');
+          if (rawIdx !== null) {
+            closestIdx = parseInt(rawIdx, 10);
+            minDistance = 0;
+            break;
+          }
+        }
+
+        // 2. Otherwise find element whose center is closest to eye line
+        const elCenter = (rect.top + rect.bottom) / 2;
+        const dist = Math.abs(elCenter - eyeY);
+        if (dist < minDistance) {
+          minDistance = dist;
           const rawIdx = el.getAttribute('data-block-idx');
           if (rawIdx !== null) {
             closestIdx = parseInt(rawIdx, 10);

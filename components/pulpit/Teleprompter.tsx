@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useLayoutEffect, useRef, useCallback } from 'react';
 import { BookOpen, Sparkles, Quote, Bookmark, Megaphone, Compass, Flag } from 'lucide-react';
 import { ThemeMode } from '@/lib/types';
 import { parseBibleReferences, getVerseData } from '@/lib/bible/parser';
@@ -397,8 +397,8 @@ export function Teleprompter({
     };
   }, [containerRef, updateEyeLevelBlock]);
 
-  // When isSummaryMode changes, smoothly align to the corresponding active block at eye level
-  useEffect(() => {
+  // When isSummaryMode changes, instantly and seamlessly align to the corresponding active block at eye level
+  useLayoutEffect(() => {
     if (prevSummaryModeRef.current === isSummaryMode) return;
     prevSummaryModeRef.current = isSummaryMode;
 
@@ -410,13 +410,15 @@ export function Teleprompter({
     let targetBlock: (typeof blocks)[0] | undefined;
 
     if (isSummaryMode) {
-      // In summary mode, find the nearest preceding heading/scripture
+      // In summary mode, find the nearest preceding heading/intro/conclusion/scripture
       const summaryBlocks = blocks.filter(
         (b) =>
           b.type === 'h1' ||
           b.type === 'h2' ||
           b.type === 'h3' ||
           b.type === 'h4' ||
+          b.type === 'intro' ||
+          b.type === 'conclusion' ||
           b.type === 'story' ||
           b.type === 'scripture'
       );
@@ -427,38 +429,44 @@ export function Teleprompter({
         targetBlock = summaryBlocks[0];
       }
     } else {
-      // In full mode, find exact block or nearest preceding
+      // In full mode, find exact block or nearest
       targetBlock = blocks.find((b) => b.index === activeIdx) || blocks.find((b) => b.index >= activeIdx) || blocks[0];
     }
 
     if (!targetBlock) return;
     const targetIdx = targetBlock.index;
 
-    const timeoutId = setTimeout(() => {
+    const applyScroll = () => {
       if (!containerRef.current) return;
-      const targetEl = containerRef.current.querySelector<HTMLElement>(`[data-block-idx="${targetIdx}"]`);
+      const container = containerRef.current;
+      const targetEl = container.querySelector<HTMLElement>(`[data-block-idx="${targetIdx}"]`);
       if (targetEl) {
-        const container = containerRef.current;
         const containerRect = container.getBoundingClientRect();
         const targetRect = targetEl.getBoundingClientRect();
-        const currentScrollTop = container.scrollTop;
-        const offsetFromContainerTop = targetRect.top - containerRect.top;
         const eyeOffset = container.clientHeight * 0.28;
-        const targetScroll = Math.max(0, currentScrollTop + offsetFromContainerTop - eyeOffset);
+        const targetScroll = container.scrollTop + (targetRect.top - containerRect.top) - eyeOffset;
 
-        container.scrollTo({
-          top: targetScroll,
-          behavior: 'smooth',
-        });
-
-        setHighlightedIndex(targetIdx);
-        setTimeout(() => {
-          setHighlightedIndex(null);
-        }, 1800);
+        container.scrollTop = Math.max(0, targetScroll);
       }
-    }, 40);
+    };
 
-    return () => clearTimeout(timeoutId);
+    // Instant layout alignment before browser paint
+    applyScroll();
+
+    // Secondary frame check for any asynchronous layout adjustments
+    const rafId = requestAnimationFrame(() => {
+      applyScroll();
+      setHighlightedIndex(targetIdx);
+    });
+
+    const timer = setTimeout(() => {
+      setHighlightedIndex(null);
+    }, 1800);
+
+    return () => {
+      cancelAnimationFrame(rafId);
+      clearTimeout(timer);
+    };
   }, [isSummaryMode, targetAnchorIndex, blocks, containerRef]);
 
   const getHighlightClass = (index: number) => {
@@ -479,6 +487,8 @@ export function Teleprompter({
           b.type === 'h2' ||
           b.type === 'h3' ||
           b.type === 'h4' ||
+          b.type === 'intro' ||
+          b.type === 'conclusion' ||
           b.type === 'story' ||
           b.type === 'scripture'
       )
@@ -487,7 +497,7 @@ export function Teleprompter({
   return (
     <div
       ref={containerRef}
-      className={`w-full h-full overflow-y-auto pl-24 sm:pl-32 lg:pl-40 pr-6 sm:pr-16 lg:pr-28 pt-24 sm:pt-28 pb-96 select-text transition-colors duration-200 ${themeStyles.bg}`}
+      className={`w-full h-full overflow-y-auto pl-24 sm:pl-32 lg:pl-40 pr-6 sm:pr-16 lg:pr-28 pt-24 sm:pt-28 pb-[75vh] select-text transition-colors duration-200 ${themeStyles.bg}`}
       style={{
         fontSize: `${fontSize}px`,
         lineHeight: isSummaryMode ? 2.0 : 1.8,
