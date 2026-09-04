@@ -12,6 +12,7 @@ interface TeleprompterProps {
   theme: ThemeMode;
   containerRef: React.RefObject<HTMLDivElement | null>;
   isSummaryMode?: boolean;
+  targetAnchorIndex?: number | null;
   onOpenVerse?: (verse: any) => void;
 }
 
@@ -21,6 +22,7 @@ export function Teleprompter({
   theme,
   containerRef,
   isSummaryMode = false,
+  targetAnchorIndex,
 }: TeleprompterProps) {
   // Theme classes
   const getThemeClasses = () => {
@@ -400,7 +402,9 @@ export function Teleprompter({
     if (prevSummaryModeRef.current === isSummaryMode) return;
     prevSummaryModeRef.current = isSummaryMode;
 
-    const activeIdx = currentEyeBlockIndexRef.current;
+    const activeIdx = (targetAnchorIndex !== null && targetAnchorIndex !== undefined)
+      ? targetAnchorIndex
+      : currentEyeBlockIndexRef.current;
 
     // Find the target block in displayedBlocks
     let targetBlock: (typeof blocks)[0] | undefined;
@@ -452,10 +456,10 @@ export function Teleprompter({
           setHighlightedIndex(null);
         }, 1800);
       }
-    }, 50);
+    }, 40);
 
     return () => clearTimeout(timeoutId);
-  }, [isSummaryMode, blocks, containerRef]);
+  }, [isSummaryMode, targetAnchorIndex, blocks, containerRef]);
 
   const getHighlightClass = (index: number) => {
     if (highlightedIndex !== index) return 'transition-all duration-700';

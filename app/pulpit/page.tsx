@@ -146,9 +146,38 @@ function PulpitContent() {
     }
   }, []);
 
+  const [targetAnchorIndex, setTargetAnchorIndex] = useState<number | null>(null);
+
+  const handleToggleSummaryMode = useCallback(() => {
+    if (containerRef.current) {
+      const container = containerRef.current;
+      const containerRect = container.getBoundingClientRect();
+      const eyeY = containerRect.top + container.clientHeight * 0.28;
+      const elements = container.querySelectorAll<HTMLElement>('[data-block-idx]');
+      let closestIdx = 0;
+      let minDiff = Infinity;
+
+      for (let k = 0; k < elements.length; k++) {
+        const el = elements[k];
+        const rect = el.getBoundingClientRect();
+        const diff = Math.abs(rect.top - eyeY);
+        if (diff < minDiff) {
+          minDiff = diff;
+          const rawIdx = el.getAttribute('data-block-idx');
+          if (rawIdx !== null) {
+            closestIdx = parseInt(rawIdx, 10);
+          }
+        }
+      }
+      setTargetAnchorIndex(closestIdx);
+    }
+    setIsSummaryMode((prev) => !prev);
+  }, []);
+
   // Keyboard navigation
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      // Ignore key events if user is typing in an input
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
         return;
       }
@@ -160,7 +189,6 @@ function PulpitContent() {
           break;
 
         case 'ArrowDown':
-        case 'KeyJ':
           e.preventDefault();
           if (containerRef.current) {
             containerRef.current.scrollBy({ top: 180, behavior: 'smooth' });
@@ -168,7 +196,6 @@ function PulpitContent() {
           break;
 
         case 'ArrowUp':
-        case 'KeyK':
           e.preventDefault();
           if (containerRef.current) {
             containerRef.current.scrollBy({ top: -180, behavior: 'smooth' });
@@ -187,7 +214,7 @@ function PulpitContent() {
 
         case 'KeyK':
           e.preventDefault();
-          setIsSummaryMode((prev) => !prev);
+          handleToggleSummaryMode();
           break;
 
         case 'KeyR':
@@ -211,7 +238,7 @@ function PulpitContent() {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [autoscroll, timer, isVerseModalOpen, isOutlineOpen, router]);
+  }, [autoscroll, timer, isVerseModalOpen, isOutlineOpen, router, handleToggleSummaryMode]);
 
   const getRootBg = () => {
     switch (theme) {
@@ -244,7 +271,7 @@ function PulpitContent() {
       {/* 2. Ultra-Discrete Minimalist Floating Summary / Outline Mode Toggle (Top-Right) */}
       <div className="fixed top-8 sm:top-10 right-14 sm:right-20 z-30 select-none">
         <button
-          onClick={() => setIsSummaryMode((prev) => !prev)}
+          onClick={handleToggleSummaryMode}
           className={`group flex items-center gap-1.5 px-2.5 py-1 sm:px-3 sm:py-1.5 rounded-full border backdrop-blur-md transition-all duration-300 text-xs font-mono cursor-pointer ${
             isSummaryMode
               ? 'bg-amber-500/20 border-amber-500/50 text-amber-300 opacity-90 shadow-lg'
@@ -266,6 +293,7 @@ function PulpitContent() {
         theme={theme}
         containerRef={containerRef}
         isSummaryMode={isSummaryMode}
+        targetAnchorIndex={targetAnchorIndex}
         onOpenVerse={(verse) => {
           setActiveVerse(verse);
           setIsVerseModalOpen(true);
@@ -294,7 +322,7 @@ function PulpitContent() {
         onDecreaseSpeed={autoscroll.decreaseSpeed}
         isWakeLockActive={isWakeLockActive}
         isSummaryMode={isSummaryMode}
-        onToggleSummaryMode={() => setIsSummaryMode((prev) => !prev)}
+        onToggleSummaryMode={handleToggleSummaryMode}
         onToggleOutline={() => setIsOutlineOpen((prev) => !prev)}
         onExit={() => router.push('/')}
       />
