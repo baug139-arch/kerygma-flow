@@ -435,8 +435,12 @@ export function Teleprompter({
       const targetEl = containerRef.current.querySelector<HTMLElement>(`[data-block-idx="${targetIdx}"]`);
       if (targetEl) {
         const container = containerRef.current;
+        const containerRect = container.getBoundingClientRect();
+        const targetRect = targetEl.getBoundingClientRect();
+        const currentScrollTop = container.scrollTop;
+        const offsetFromContainerTop = targetRect.top - containerRect.top;
         const eyeOffset = container.clientHeight * 0.28;
-        const targetScroll = Math.max(0, targetEl.offsetTop - eyeOffset);
+        const targetScroll = Math.max(0, currentScrollTop + offsetFromContainerTop - eyeOffset);
 
         container.scrollTo({
           top: targetScroll,
