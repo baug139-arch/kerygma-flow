@@ -21,12 +21,14 @@ import {
   FileText,
   CheckCircle2,
 } from 'lucide-react';
-import { ThemeMode } from '@/lib/types';
+import { ThemeMode, PulpitWidth } from '@/lib/types';
 
 interface PulpitControlsProps {
   fontSize: number;
   onIncreaseFont: () => void;
   onDecreaseFont: () => void;
+  textWidth: PulpitWidth;
+  onSetWidth: (width: PulpitWidth) => void;
   theme: ThemeMode;
   onSetTheme: (theme: ThemeMode) => void;
   isAutoscrolling: boolean;
@@ -45,6 +47,8 @@ export function PulpitControls({
   fontSize,
   onIncreaseFont,
   onDecreaseFont,
+  textWidth,
+  onSetWidth,
   theme,
   onSetTheme,
   isAutoscrolling,
@@ -212,6 +216,40 @@ export function PulpitControls({
               title="Увеличить шрифт"
             >
               A+
+            </button>
+          </div>
+
+          <div className="h-5 w-px bg-zinc-700/40 mx-1" />
+
+          {/* Text column width selector */}
+          <div className="flex items-center gap-1 bg-zinc-800/30 px-1.5 py-1 rounded-xl">
+            <span className="text-[11px] text-zinc-400 font-medium hidden sm:inline mr-0.5">Ширина:</span>
+            <button
+              onClick={() => onSetWidth('narrow')}
+              className={`px-2 py-0.5 rounded-lg text-xs font-medium transition-all ${
+                textWidth === 'narrow' ? 'bg-amber-500/20 text-amber-400 font-bold' : 'opacity-50 hover:opacity-100'
+              }`}
+              title="Узкая колонка (~5-6 слов)"
+            >
+              Узкая
+            </button>
+            <button
+              onClick={() => onSetWidth('normal')}
+              className={`px-2 py-0.5 rounded-lg text-xs font-medium transition-all ${
+                textWidth === 'normal' ? 'bg-amber-500/20 text-amber-400 font-bold' : 'opacity-50 hover:opacity-100'
+              }`}
+              title="Оптимальная колонка (~8-10 слов)"
+            >
+              Обычная
+            </button>
+            <button
+              onClick={() => onSetWidth('wide')}
+              className={`px-2 py-0.5 rounded-lg text-xs font-medium transition-all ${
+                textWidth === 'wide' ? 'bg-amber-500/20 text-amber-400 font-bold' : 'opacity-50 hover:opacity-100'
+              }`}
+              title="Широкая колонка (~11-14 слов)"
+            >
+              Широкая
             </button>
           </div>
 

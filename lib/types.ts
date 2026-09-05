@@ -1,4 +1,5 @@
 export type ThemeMode = 'oled' | 'sepia' | 'light';
+export type PulpitWidth = 'narrow' | 'normal' | 'wide';
 
 export interface BibleVerseRef {
   raw: string;

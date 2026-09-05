@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo } from 'react';
 import { BookOpen, Sparkles, Quote, Bookmark, Megaphone, Compass, Flag, Clock } from 'lucide-react';
-import { ThemeMode } from '@/lib/types';
+import { ThemeMode, PulpitWidth } from '@/lib/types';
 import { parseBibleReferences, getVerseData } from '@/lib/bible/parser';
 import { cleanDocumentArtifacts } from '@/lib/utils/htmlDecoder';
 import { calculatePacingMap } from '@/lib/utils/pacing';
@@ -13,6 +13,7 @@ interface TeleprompterProps {
   theme: ThemeMode;
   containerRef: React.RefObject<HTMLDivElement | null>;
   isSummaryMode?: boolean;
+  textWidth?: PulpitWidth;
   targetAnchorIndex?: number | null;
   targetDurationMinutes?: number;
   elapsedSeconds?: number;
@@ -25,6 +26,7 @@ export function Teleprompter({
   theme,
   containerRef,
   isSummaryMode = false,
+  textWidth = 'normal',
   targetAnchorIndex,
   targetDurationMinutes = 30,
   elapsedSeconds = 0,
@@ -532,16 +534,28 @@ export function Teleprompter({
       )
     : blocks;
 
+  const getMaxWidthClass = () => {
+    switch (textWidth) {
+      case 'narrow':
+        return 'max-w-xl sm:max-w-2xl';
+      case 'wide':
+        return 'max-w-5xl sm:max-w-6xl';
+      case 'normal':
+      default:
+        return 'max-w-3xl sm:max-w-4xl';
+    }
+  };
+
   return (
     <div
       ref={containerRef}
-      className={`w-full h-full overflow-y-auto pl-24 sm:pl-32 lg:pl-40 pr-6 sm:pr-16 lg:pr-28 pt-24 sm:pt-28 pb-[75vh] select-text transition-colors duration-200 ${themeStyles.bg}`}
+      className={`w-full h-full overflow-y-auto pl-6 sm:pl-12 lg:pl-16 pr-10 sm:pr-14 lg:pr-20 pt-24 sm:pt-28 pb-[75vh] select-text transition-colors duration-200 ${themeStyles.bg}`}
       style={{
         fontSize: `${fontSize}px`,
         lineHeight: isSummaryMode ? 2.0 : 1.8,
       }}
     >
-      <div className={`max-w-4xl mx-auto ${isSummaryMode ? 'space-y-8 sm:space-y-10' : 'space-y-6'}`}>
+      <div className={`${getMaxWidthClass()} mx-auto transition-all duration-300 ${isSummaryMode ? 'space-y-8 sm:space-y-10' : 'space-y-6'}`}>
         {displayedBlocks.map((block, idx) => {
           switch (block.type) {
             case 'h1':

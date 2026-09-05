@@ -13,7 +13,7 @@ import { useWakeLock } from '@/lib/hooks/useWakeLock';
 import { useStageTimer } from '@/lib/hooks/useStageTimer';
 import { useAutoscroll } from '@/lib/hooks/useAutoscroll';
 import { SAMPLE_SERMONS } from '@/lib/sampleSermons';
-import { OutlineItem, Sermon, SermonDelivery, ThemeMode, VerseData } from '@/lib/types';
+import { OutlineItem, Sermon, SermonDelivery, ThemeMode, VerseData, PulpitWidth } from '@/lib/types';
 import { FinishSermonModal } from '@/components/pulpit/FinishSermonModal';
 import { calculatePacingMap } from '@/lib/utils/pacing';
 import { saveSermonToCloudAndLocal } from '@/lib/firebase/sermonSync';
@@ -31,12 +31,18 @@ function PulpitContent() {
   const [activeVerse, setActiveVerse] = useState<VerseData | null>(null);
   const [isVerseModalOpen, setIsVerseModalOpen] = useState(false);
   const [activeSectionId, setActiveSectionId] = useState<string | null>(null);
+  const [textWidth, setTextWidth] = useState<PulpitWidth>('normal');
 
   const containerRef = useRef<HTMLDivElement | null>(null);
 
   // Load sermon from storage or default
   useEffect(() => {
     if (typeof window !== 'undefined') {
+      const savedWidth = localStorage.getItem('kerygma_pulpit_width') as PulpitWidth;
+      if (savedWidth && ['narrow', 'normal', 'wide'].includes(savedWidth)) {
+        setTextWidth(savedWidth);
+      }
+
       const saved = localStorage.getItem(`kerygma_sermon_${sermonId}`);
       if (saved) {
         try {
@@ -61,6 +67,13 @@ function PulpitContent() {
       setSermon(found);
     }
   }, [sermonId]);
+
+  const handleSetWidth = useCallback((width: PulpitWidth) => {
+    setTextWidth(width);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('kerygma_pulpit_width', width);
+    }
+  }, []);
 
   // Screen WakeLock
   const { isSupported, isActive: isWakeLockActive, requestWakeLock, releaseWakeLock } = useWakeLock();
@@ -365,6 +378,7 @@ function PulpitContent() {
         theme={theme}
         containerRef={containerRef}
         isSummaryMode={isSummaryMode}
+        textWidth={textWidth}
         targetAnchorIndex={targetAnchorIndex}
         targetDurationMinutes={timer.targetMinutes}
         elapsedSeconds={timer.elapsedSeconds}
@@ -387,6 +401,8 @@ function PulpitContent() {
         fontSize={fontSize}
         onIncreaseFont={() => setFontSize((f) => Math.min(64, f + 2))}
         onDecreaseFont={() => setFontSize((f) => Math.max(18, f - 2))}
+        textWidth={textWidth}
+        onSetWidth={handleSetWidth}
         theme={theme}
         onSetTheme={setTheme}
         isAutoscrolling={autoscroll.isPlaying}
