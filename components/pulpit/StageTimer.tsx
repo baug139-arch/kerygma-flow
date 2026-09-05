@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Play, Pause, RotateCcw, Plus, Minus, Clock, ChevronDown, Sparkles } from 'lucide-react';
+import { Play, Pause, RotateCcw, Plus, Minus, Clock } from 'lucide-react';
 import { StageLightState, StageTimerStatus, ThemeMode } from '@/lib/types';
 
 interface StageTimerProps {
@@ -78,10 +78,11 @@ export function StageTimer({
     <div className="fixed top-8 sm:top-10 left-3 sm:left-4 z-30 flex flex-col items-start select-none">
       {/* Main Mini Floating Pill */}
       <div
-        className={`group flex items-center gap-2 px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-full border backdrop-blur-md transition-all duration-300 shadow-lg cursor-pointer ${
+        className={`group flex items-center gap-2 pl-2 pr-3.5 py-1 sm:pl-2.5 sm:pr-4 sm:py-1.5 rounded-full border backdrop-blur-md transition-all duration-300 shadow-lg cursor-pointer ${
           light.pill
         } ${isExpanded ? 'opacity-100 shadow-2xl' : 'opacity-60 hover:opacity-100'}`}
         onClick={() => setIsExpanded(!isExpanded)}
+        title="Нажмите, чтобы настроить регламент или сбросить таймер"
       >
         {/* Play/Pause Button */}
         <button
@@ -107,19 +108,6 @@ export function StageTimer({
         <span className={`font-mono text-lg font-black tracking-tight ${light.text}`}>
           {remainingFormatted}
         </span>
-
-        {/* Status Dot */}
-        <div className="relative flex items-center justify-center w-2.5 h-2.5 ml-0.5">
-          <span className={`absolute w-full h-full rounded-full opacity-75 ${light.dot}`} />
-          <span className={`relative w-2 h-2 rounded-full ${light.solidDot}`} />
-        </div>
-
-        {/* Small expand arrow */}
-        <ChevronDown
-          className={`w-3.5 h-3.5 opacity-40 group-hover:opacity-100 transition-transform duration-200 ${
-            isExpanded ? 'rotate-180' : ''
-          }`}
-        />
       </div>
 
       {/* Expanded Quick Settings Popover */}
