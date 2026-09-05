@@ -6,6 +6,7 @@ import { StageLightState, StageTimerStatus, ThemeMode } from '@/lib/types';
 
 interface StageTimerProps {
   status: StageTimerStatus;
+  elapsedSeconds?: number;
   elapsedFormatted: string;
   remainingFormatted: string;
   lightState: StageLightState;
@@ -19,6 +20,7 @@ interface StageTimerProps {
 
 export function StageTimer({
   status,
+  elapsedSeconds = 0,
   elapsedFormatted,
   remainingFormatted,
   lightState,
@@ -31,6 +33,27 @@ export function StageTimer({
 }: StageTimerProps) {
   const [isExpanded, setIsExpanded] = useState(false);
   const estWpm = Math.round(wordCount / targetMinutes);
+
+  const isRunning = status === 'running';
+  const isMicro = isRunning && !isExpanded;
+
+  const totalSeconds = targetMinutes * 60;
+  const progressRatio = Math.min(1, Math.max(0, elapsedSeconds / (totalSeconds || 1)));
+  const progressPercent = (progressRatio * 100).toFixed(1);
+
+  const getProgressLineStyles = () => {
+    switch (lightState) {
+      case 'overtime':
+        return 'bg-red-500 shadow-[0_0_10px_rgba(239,68,68,0.9)] animate-pulse';
+      case 'danger':
+        return 'bg-orange-500 shadow-[0_0_8px_rgba(249,115,22,0.8)]';
+      case 'warning':
+        return 'bg-yellow-400 shadow-[0_0_6px_rgba(234,179,8,0.7)]';
+      case 'normal':
+      default:
+        return 'bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.5)]';
+    }
+  };
 
   // Status dot & border styles based on lightState
   const getLightStyles = () => {
@@ -75,40 +98,63 @@ export function StageTimer({
   const light = getLightStyles();
 
   return (
-    <div className="fixed top-8 sm:top-10 left-3 sm:left-4 z-30 flex flex-col items-start select-none">
-      {/* Main Mini Floating Pill */}
-      <div
-        className={`group flex items-center gap-2 pl-2 pr-3.5 py-1 sm:pl-2.5 sm:pr-4 sm:py-1.5 rounded-full border backdrop-blur-md transition-all duration-300 shadow-lg cursor-pointer ${
-          light.pill
-        } ${isExpanded ? 'opacity-100 shadow-2xl' : 'opacity-60 hover:opacity-100'}`}
-        onClick={() => setIsExpanded(!isExpanded)}
-        title="Нажмите, чтобы настроить регламент или сбросить таймер"
-      >
-        {/* Play/Pause Button */}
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            onToggle();
-          }}
-          className={`flex items-center justify-center w-7 h-7 rounded-full transition-all ${
-            status === 'running'
-              ? 'bg-amber-500/80 hover:bg-amber-400 text-black'
-              : 'bg-emerald-500/80 hover:bg-emerald-400 text-black'
-          }`}
-          title={status === 'running' ? 'Пауза' : 'Старт'}
-        >
-          {status === 'running' ? (
-            <Pause className="w-3.5 h-3.5 fill-current" />
-          ) : (
-            <Play className="w-3.5 h-3.5 fill-current ml-0.5" />
-          )}
-        </button>
-
-        {/* Digits */}
-        <span className={`font-mono text-lg font-black tracking-tight ${light.text}`}>
-          {remainingFormatted}
-        </span>
+    <>
+      {/* 1. Ultra-slim top progress bar (2.5px) along the very top edge */}
+      <div className="fixed top-0 left-0 right-0 z-40 h-[2.5px] bg-zinc-800/15 pointer-events-none">
+        <div
+          className={`h-full transition-all duration-500 ease-linear ${getProgressLineStyles()}`}
+          style={{ width: `${progressPercent}%` }}
+        />
       </div>
+
+      {/* 2. Main Floating Capsule / Micro-indicator */}
+      <div className="fixed top-6 sm:top-8 left-3 sm:left-4 z-30 flex flex-col items-start select-none">
+        <div
+          className={`group flex items-center transition-all duration-300 shadow-lg cursor-pointer ${
+            isMicro
+              ? `gap-1.5 pl-1.5 pr-2.5 py-0.5 rounded-full border backdrop-blur-sm opacity-35 hover:opacity-100 ${
+                  lightState === 'overtime' || lightState === 'danger'
+                    ? 'opacity-85 ' + light.pill
+                    : light.pill
+                }`
+              : `gap-2 pl-2 pr-3.5 py-1 sm:pl-2.5 sm:pr-4 sm:py-1.5 rounded-full border backdrop-blur-md ${
+                  light.pill
+                } ${isExpanded ? 'opacity-100 shadow-2xl' : 'opacity-70 hover:opacity-100'}`
+          }`}
+          onClick={() => setIsExpanded(!isExpanded)}
+          title={isMicro ? 'Нажмите для открытия настроек таймера' : 'Нажмите для настройки регламента'}
+        >
+          {/* Play/Pause Button */}
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onToggle();
+            }}
+            className={`flex items-center justify-center rounded-full transition-all ${
+              isMicro ? 'w-5 h-5' : 'w-7 h-7'
+            } ${
+              status === 'running'
+                ? 'bg-amber-500/80 hover:bg-amber-400 text-black'
+                : 'bg-emerald-500/80 hover:bg-emerald-400 text-black'
+            }`}
+            title={status === 'running' ? 'Пауза' : 'Старт'}
+          >
+            {status === 'running' ? (
+              <Pause className={isMicro ? 'w-2.5 h-2.5 fill-current' : 'w-3.5 h-3.5 fill-current'} />
+            ) : (
+              <Play className={isMicro ? 'w-2.5 h-2.5 fill-current ml-0.5' : 'w-3.5 h-3.5 fill-current ml-0.5'} />
+            )}
+          </button>
+
+          {/* Digits */}
+          <span
+            className={`font-mono font-black tracking-tight transition-all ${
+              isMicro ? 'text-xs' : 'text-lg'
+            } ${light.text}`}
+          >
+            {remainingFormatted}
+          </span>
+        </div>
 
       {/* Expanded Quick Settings Popover */}
       {isExpanded && (
@@ -198,5 +244,6 @@ export function StageTimer({
         </div>
       )}
     </div>
-  );
+  </>
+);
 }

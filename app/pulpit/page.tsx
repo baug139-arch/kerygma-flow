@@ -342,6 +342,7 @@ function PulpitContent() {
       {/* 1. Ultra-Compact Minimalist Floating Stage Timer Capsule (Top-Left Option A) */}
       <StageTimer
         status={timer.status}
+        elapsedSeconds={timer.elapsedSeconds}
         elapsedFormatted={timer.formattedElapsed}
         remainingFormatted={timer.formattedRemaining}
         lightState={timer.lightState}
