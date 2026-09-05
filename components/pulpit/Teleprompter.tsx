@@ -537,19 +537,19 @@ export function Teleprompter({
   const getMaxWidthClass = () => {
     switch (textWidth) {
       case 'narrow':
-        return 'max-w-xl sm:max-w-2xl';
+        return 'max-w-[480px] sm:max-w-[500px] lg:max-w-lg';
       case 'wide':
-        return 'max-w-5xl sm:max-w-6xl';
+        return 'max-w-full sm:max-w-4xl lg:max-w-5xl';
       case 'normal':
       default:
-        return 'max-w-3xl sm:max-w-4xl';
+        return 'max-w-[620px] sm:max-w-[640px] lg:max-w-3xl';
     }
   };
 
   return (
     <div
       ref={containerRef}
-      className={`w-full h-full overflow-y-auto pl-6 sm:pl-12 lg:pl-16 pr-10 sm:pr-14 lg:pr-20 pt-24 sm:pt-28 pb-[75vh] select-text transition-colors duration-200 ${themeStyles.bg}`}
+      className={`w-full h-full overflow-y-auto pl-4 sm:pl-8 lg:pl-12 pr-8 sm:pr-12 lg:pr-16 pt-24 sm:pt-28 pb-[75vh] select-text transition-colors duration-200 ${themeStyles.bg}`}
       style={{
         fontSize: `${fontSize}px`,
         lineHeight: isSummaryMode ? 2.0 : 1.8,
