@@ -308,8 +308,12 @@ export function SermonEditor({ sermon, onSave, onLaunchPulpit, onBack }: SermonE
   const [wordCount, setWordCount] = useState(0);
   const [hoveredTool, setHoveredTool] = useState<string | null>(null);
 
-  // Floating Selection Bubble State
-  const [bubblePos, setBubblePos] = useState<{ x: number; y: number } | null>(null);
+  // Floating Selection Bubble State (Smart offset to avoid iOS callout collision)
+  const [bubblePos, setBubblePos] = useState<{
+    x: number;
+    y: number;
+    placement: 'top' | 'bottom';
+  } | null>(null);
 
   // Pacing customization state (Default: 115 WPM, 2.05x expansion)
   const [wpm, setWpm] = useState(115);
@@ -354,9 +358,9 @@ export function SermonEditor({ sermon, onSave, onLaunchPulpit, onBack }: SermonE
     }
   };
 
-  // Monitor text selection for Floating Bubble Toolbar
+  // Monitor text selection for Floating Bubble Toolbar with smart side-offset (Option 3)
   useEffect(() => {
-    const handleSelectionChange = () => {
+    const updateBubblePosition = () => {
       const sel = window.getSelection();
       if (!sel || sel.isCollapsed || !editorRef.current) {
         setBubblePos(null);
@@ -368,9 +372,53 @@ export function SermonEditor({ sermon, onSave, onLaunchPulpit, onBack }: SermonE
         if (editorRef.current.contains(range.commonAncestorContainer)) {
           const rect = range.getBoundingClientRect();
           if (rect.width > 0 && rect.height > 0) {
+            const viewportWidth = window.innerWidth;
+            const bubbleWidth = 285;
+            const bubbleHalfWidth = bubbleWidth / 2;
+            const bubbleHeight = 44;
+            const margin = 16;
+            const topHeaderSafeZone = 80;
+
+            const centerX = rect.left + rect.width / 2;
+
+            // Option 3: Side-shift to avoid colliding with iOS native [Cut | Copy | Paste] callout.
+            // iOS native callout is always centered at centerX (width ~200-240px: [centerX - 120, centerX + 120]).
+            // Anchor our toolbar towards the right edge of the selection:
+            let targetX = Math.max(rect.right, centerX + 140);
+
+            // If targetX pushes the bubble off the right edge of the screen:
+            if (targetX + bubbleHalfWidth > viewportWidth - margin) {
+              const clampedRightX = viewportWidth - bubbleHalfWidth - margin;
+              // If clamped position still overlaps the centered iOS callout:
+              if (Math.abs(clampedRightX - centerX) < 130) {
+                // Flip to the left side of the selection
+                const leftCandidate = Math.min(rect.left, centerX - 140);
+                targetX = Math.max(bubbleHalfWidth + margin, leftCandidate);
+              } else {
+                targetX = clampedRightX;
+              }
+            } else {
+              targetX = Math.max(bubbleHalfWidth + margin, targetX);
+            }
+
+            // Vertical clearance:
+            // Check if there is enough space above the selection (above sticky header)
+            const spaceAbove = rect.top - topHeaderSafeZone;
+            let targetY: number;
+            let placement: 'top' | 'bottom';
+
+            if (spaceAbove >= bubbleHeight + 20) {
+              placement = 'top';
+              targetY = rect.top - 20;
+            } else {
+              placement = 'bottom';
+              targetY = rect.bottom + 18;
+            }
+
             setBubblePos({
-              x: rect.left + rect.width / 2,
-              y: rect.top - 12,
+              x: Math.round(targetX),
+              y: Math.round(targetY),
+              placement,
             });
             lastRangeRef.current = range;
             return;
@@ -380,8 +428,15 @@ export function SermonEditor({ sermon, onSave, onLaunchPulpit, onBack }: SermonE
       setBubblePos(null);
     };
 
-    document.addEventListener('selectionchange', handleSelectionChange);
-    return () => document.removeEventListener('selectionchange', handleSelectionChange);
+    document.addEventListener('selectionchange', updateBubblePosition);
+    window.addEventListener('scroll', updateBubblePosition, { passive: true });
+    window.addEventListener('resize', updateBubblePosition, { passive: true });
+
+    return () => {
+      document.removeEventListener('selectionchange', updateBubblePosition);
+      window.removeEventListener('scroll', updateBubblePosition);
+      window.removeEventListener('resize', updateBubblePosition);
+    };
   }, []);
 
   // Custom History Stack for robust Undo / Redo of all changes (typing & formatting)
@@ -912,79 +967,88 @@ export function SermonEditor({ sermon, onSave, onLaunchPulpit, onBack }: SermonE
 
       {/* Main Workspace Layout */}
       <div className="flex-1 flex justify-center px-4 sm:px-6 py-6 sm:py-8 max-w-5xl mx-auto w-full relative">
-        {/* Floating Context Bubble on Text Selection */}
+        {/* Floating Context Bubble on Text Selection (Smart offset to avoid iOS callout collision) */}
         {bubblePos && (
           <div
-            className="fixed z-50 -translate-x-1/2 -translate-y-full flex items-center gap-1 p-1.5 rounded-2xl bg-zinc-900/95 border border-zinc-700 shadow-2xl backdrop-blur-md animate-in fade-in zoom-in duration-150"
+            className={`fixed z-50 -translate-x-1/2 flex items-center gap-1 p-1.5 rounded-2xl bg-zinc-900/95 border border-zinc-700 shadow-2xl backdrop-blur-md transition-transform duration-100 ease-out select-none ${
+              bubblePos.placement === 'bottom' ? 'translate-y-0' : '-translate-y-full'
+            }`}
             style={{ left: `${bubblePos.x}px`, top: `${bubblePos.y}px` }}
           >
             <button
-              onMouseDown={(e) => {
+              onPointerDown={(e) => {
                 e.preventDefault();
                 applyBold();
               }}
-              className="p-2 rounded-xl hover:bg-zinc-800 text-zinc-200 font-bold transition-colors"
+              onMouseDown={(e) => e.preventDefault()}
+              className="p-2 rounded-xl hover:bg-zinc-800 active:bg-zinc-700 text-zinc-200 font-bold transition-colors touch-manipulation"
               title="Жирный шрифт (B)"
             >
               <Bold className="w-4 h-4" />
             </button>
             <button
-              onMouseDown={(e) => {
+              onPointerDown={(e) => {
                 e.preventDefault();
                 applyItalic();
               }}
-              className="p-2 rounded-xl hover:bg-zinc-800 text-zinc-200 italic transition-colors"
+              onMouseDown={(e) => e.preventDefault()}
+              className="p-2 rounded-xl hover:bg-zinc-800 active:bg-zinc-700 text-zinc-200 italic transition-colors touch-manipulation"
               title="Курсив (I)"
             >
               <Italic className="w-4 h-4" />
             </button>
             <button
-              onMouseDown={(e) => {
+              onPointerDown={(e) => {
                 e.preventDefault();
                 applyThesis();
               }}
-              className="p-2 rounded-xl hover:bg-amber-500/20 text-amber-300 font-bold transition-colors flex items-center gap-1 text-xs"
+              onMouseDown={(e) => e.preventDefault()}
+              className="p-2 rounded-xl hover:bg-amber-500/20 active:bg-amber-500/30 text-amber-300 font-bold transition-colors flex items-center gap-1 text-xs touch-manipulation"
               title="Главный тезис"
             >
               <Lightbulb className="w-4 h-4" />
             </button>
             <div className="w-px h-5 bg-zinc-700 mx-0.5" />
             <button
-              onMouseDown={(e) => {
+              onPointerDown={(e) => {
                 e.preventDefault();
                 applyBlockFormat('quote');
               }}
-              className="p-2 rounded-xl hover:bg-indigo-500/20 text-indigo-300 transition-colors"
+              onMouseDown={(e) => e.preventDefault()}
+              className="p-2 rounded-xl hover:bg-indigo-500/20 active:bg-indigo-500/30 text-indigo-300 transition-colors touch-manipulation"
               title="Цитата"
             >
               <Quote className="w-4 h-4" />
             </button>
             <button
-              onMouseDown={(e) => {
+              onPointerDown={(e) => {
                 e.preventDefault();
                 applyBlockFormat('story');
               }}
-              className="p-2 rounded-xl hover:bg-zinc-800 text-zinc-300 hover:text-amber-300 transition-colors"
+              onMouseDown={(e) => e.preventDefault()}
+              className="p-2 rounded-xl hover:bg-zinc-800 active:bg-zinc-700 text-zinc-300 hover:text-amber-300 transition-colors touch-manipulation"
               title="Текст Писания (темная карточка)"
             >
               <ScrollText className="w-4 h-4" />
             </button>
             <button
-              onMouseDown={(e) => {
+              onPointerDown={(e) => {
                 e.preventDefault();
                 applyBlockFormat('illustration');
               }}
-              className="p-2 rounded-xl hover:bg-purple-500/20 text-purple-300 transition-colors"
+              onMouseDown={(e) => e.preventDefault()}
+              className="p-2 rounded-xl hover:bg-purple-500/20 active:bg-purple-500/30 text-purple-300 transition-colors touch-manipulation"
               title="Иллюстрация"
             >
               <Sparkles className="w-4 h-4" />
             </button>
             <button
-              onMouseDown={(e) => {
+              onPointerDown={(e) => {
                 e.preventDefault();
                 applyBlockFormat('p');
               }}
-              className="p-2 rounded-xl hover:bg-zinc-800 text-zinc-400 hover:text-zinc-200 transition-colors"
+              onMouseDown={(e) => e.preventDefault()}
+              className="p-2 rounded-xl hover:bg-zinc-800 active:bg-zinc-700 text-zinc-400 hover:text-zinc-200 transition-colors touch-manipulation"
               title="Обычный текст"
             >
               <Pilcrow className="w-4 h-4" />
